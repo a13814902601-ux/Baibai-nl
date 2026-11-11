@@ -20,6 +20,11 @@
   color: var(--bbi-ink);
   -webkit-font-smoothing: antialiased;
   line-height: 1.6;
+  /* 移动端浏览器的「字体自适应放大」(text autosizing)会按块宽度放大字号:
+     超宽的 nowrap 元素(如长字段值的 chip)被放大约 2 倍,与相邻元素大小不一。
+     锁定 100% 即按 CSS 写死的字号渲染,全插件统一(属性可继承,覆盖所有子元素)。 */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 /* —— 遮罩层 —— */

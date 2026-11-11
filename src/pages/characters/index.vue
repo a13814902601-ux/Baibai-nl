@@ -1248,7 +1248,9 @@ function sourceLabel(entry: CharTagEntry): string {
   overflow: hidden;
 }
 .bbi-chip {
-  font-family: var(--bbi-font-mono);
+  /* 字段值是自然中文短语,用黑体栈(mono 栈无中文字形,中文会按设备随机回退);
+     长值 chip 限宽省略号,不再被容器硬裁半个字,完整值在 title 悬停可见。 */
+  font-family: var(--bbi-font-sans);
   font-size: 11px;
   padding: 3px 9px;
   border-radius: var(--bbi-radius-pill);
@@ -1256,6 +1258,9 @@ function sourceLabel(entry: CharTagEntry): string {
   color: var(--bbi-ink-soft);
   border: 1px solid var(--bbi-line);
   white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* 整串模式:mono 小字两行截断 */
 .bbi-char-raw {
