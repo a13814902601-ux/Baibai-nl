@@ -163,6 +163,88 @@ export async function generateCharTags(
   return out;
 }
 
+/* ============ 按用户描述补充字段（角色编辑弹窗） ============ */
+
+const SUPPLEMENT_SPEC = `你是外貌档案补充器。用户会给出角色当前的字段档案和一段补充描述，把描述里的外貌信息合并进字段，返回合并后的完整档案。
+
+字段与口径（Baibai-nl：全部用自然中文短语）：
+- fandom（同人身份）：「《作品名》的角名」，如「《原神》的甘雨」；原创角色留空
+- sex（性别）：少女 / 少年 / 成年女性 / 男性 等
+- hair（头发）：乌黑的长发 / 银色短发 等（颜色+长度/发型写在一起）
+- eyes（眼睛）：蓝色的眼睛 / 红色的眼睛 等
+- skin（肤色）：晒黑 / 深色皮肤 等（没提就留空；白皙是默认肤色，不需要记录）
+- body（体型）：娇小 / 高挑 / 纤细 / 胸部丰满 等
+- extra（标志特征）：异色瞳 / 脸颊有疤 / 尖耳朵 等
+- outfit（固定着装）：描述明确该服装长期固定不变（如「总是穿」「招牌装束」）才写；一次性或当前穿着不写
+
+规则：
+1. 描述明确提到的特征写进对应字段；描述与当前值冲突时以描述为准（用户就是在要求修改）。
+2. 描述没提到的字段原样返回当前值；当前为空且描述也没提的字段留空。
+3. 不要脑补描述之外的细节。
+4. 动作、姿势、表情、临时状态、所在场景一律不写。
+5. 只返回一个 JSON 对象，形如 {"fandom":"","sex":"少女","hair":"银色长发","eyes":"红色的眼睛","skin":"","body":"","extra":"","outfit":""}，八个字段全带；不要 Markdown 代码块、不要解释。`;
+
+/**
+ * 解析补充器的扁平返回 {字段: 值}(宽容:带 think 块/代码块/前后杂质也能解)。
+ * 解析不出任何 JSON 对象 → null;解出来但无非空字段 → {}(区别于「没返回」)。
+ */
+export function parseSupplementFields(raw: string): Partial<Record<CharTagField, string>> | null {
+  const cleaned = raw.replace(/<think(?:ing)?\b[\s\S]*?<\/think(?:ing)?>/gi, '');
+  const candidates: string[] = [cleaned.trim()];
+  for (const match of cleaned.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)) {
+    candidates.unshift(match[1].trim());
+  }
+  for (const candidate of candidates) {
+    const start = candidate.indexOf('{');
+    const end = candidate.lastIndexOf('}');
+    if (start < 0 || end <= start) continue;
+    try {
+      const value: unknown = JSON.parse(candidate.slice(start, end + 1));
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const out: Partial<Record<CharTagField, string>> = {};
+        for (const f of CHAR_TAG_FIELDS) {
+          const tag = sanitizeTagValue((value as Record<string, unknown>)[f]);
+          if (tag) out[f] = tag;
+        }
+        return out;
+      }
+    } catch {
+      // 试下一个候选
+    }
+  }
+  return null;
+}
+
+/**
+ * 按用户的一段描述补充/修正角色字段:当前档案 + 描述 一起发给模型,返回合并后的非空字段。
+ * 只返回描述涉及(或原本有值)的字段;调用方按「非空才覆盖」合并,模型失误清不掉用户字段。
+ * 渠道与 generateCharTags 同口径;解析失败抛错,调用方 catch 后提示重试。
+ */
+export async function supplementCharTags(
+  name: string,
+  request: string,
+  fields: Record<CharTagField, string>,
+  signal?: AbortSignal,
+): Promise<Partial<Record<CharTagField, string>>> {
+  const specLines = CHAR_TAG_FIELDS.map(
+    f => `- ${CHAR_TAG_FIELD_LABELS[f]}：${fields[f]?.trim() || '（空）'}`,
+  ).join('\n');
+  const messages: ChatMsg[] = [
+    { role: 'system', content: SUPPLEMENT_SPEC },
+    {
+      role: 'user',
+      content: `角色名：${name}\n\n当前档案：\n${specLines}\n\n用户描述：\n${request.trim()}`,
+    },
+  ];
+  const channel = getTagGenChannel();
+  const raw = channel
+    ? await requestCompletion(channel, messages, { signal, source: '角色外貌补充' })
+    : await requestViaMainApi(messages, { signal, source: '角色外貌补充' });
+  const parsed = parseSupplementFields(raw);
+  if (!parsed) throw new Error('模型没有返回可解析的字段结果，请重试或换个说法');
+  return parsed;
+}
+
 /* ============ 主流程入口 ============ */
 
 /**

@@ -3,7 +3,7 @@ import BbiTextarea from '@/components/BbiTextarea.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import Icon from '@/components/Icon.vue';
 import ModalMask from '@/components/ModalMask.vue';
-import { generateCharTags } from '@/autoTag/charAnchors';
+import { generateCharTags, supplementCharTags } from '@/autoTag/charAnchors';
 import { readBookMemory } from '@/autoTag/bookMemory';
 import {
   CHAR_TAG_FIELDS,
@@ -69,6 +69,10 @@ const draft = ref<Draft | null>(null);
 const draftSource = ref<CharTagEntry['source']>('manual');
 const draftDesc = ref('');
 const regenerating = ref(false);
+// 按用户要求补充:弹窗内展开的输入面板,描述交给 AI 拆进字段
+const supplementOpen = ref(false);
+const supplementText = ref('');
+const supplementing = ref(false);
 // 弹窗内历史面板开关
 const historyOpen = ref(false);
 // 回滚确认
@@ -140,6 +144,8 @@ function openEntry(entry: CharTagEntry, scope: Scope) {
   draftSource.value = entry.source;
   draftDesc.value = entry.desc;
   historyOpen.value = false;
+  supplementOpen.value = false;
+  supplementText.value = '';
 }
 
 function addEntry(scope: Scope = 'chat') {
@@ -150,6 +156,8 @@ function addEntry(scope: Scope = 'chat') {
   draftSource.value = 'manual';
   draftDesc.value = '';
   historyOpen.value = false;
+  supplementOpen.value = false;
+  supplementText.value = '';
 }
 
 /* —— 分区折叠(参照柏宝书「计划/悬念」)——
@@ -231,6 +239,8 @@ function closeEntry() {
   draft.value = null;
   regenerating.value = false;
   historyOpen.value = false;
+  supplementOpen.value = false;
+  supplementText.value = '';
 }
 
 /** 手动编辑过的字段 → 条目归手动(但仍可被 AI 变更接管) */
@@ -341,6 +351,32 @@ async function regenerateFromBook() {
     toastr.error(error instanceof Error ? error.message : String(error), '柏宝绘');
   } finally {
     regenerating.value = false;
+  }
+}
+
+/* —— 按用户要求补充:描述 + 当前档案交给 AI 合并,非空字段才覆盖,改动先进草稿 —— */
+async function runSupplement() {
+  const d = draft.value;
+  if (!d || !supplementText.value.trim() || supplementing.value) return;
+  supplementing.value = true;
+  try {
+    const result = await supplementCharTags(d.name.trim() || '（未命名）', supplementText.value, d.fields);
+    const applied = CHAR_TAG_FIELDS.filter(f => result[f]);
+    if (!applied.length) {
+      toastr.info('描述里没有识别到可补充的外貌信息,试试写得更具体些', '柏宝绘');
+      return;
+    }
+    for (const f of applied) d.fields[f] = result[f]!;
+    // 字段一旦有值,整串模式就不再生效(buildEntryTag 只在字段全空时用整串),清掉避免「看着有却没用」
+    if (d.raw.trim()) d.raw = '';
+    markManual();
+    supplementOpen.value = false;
+    supplementText.value = '';
+    toastr.success(`已按描述补充 ${applied.length} 个栏目,点「完成」保存`, '柏宝绘');
+  } catch (error) {
+    toastr.error(error instanceof Error ? error.message : String(error), '柏宝绘');
+  } finally {
+    supplementing.value = false;
   }
 }
 
@@ -629,6 +665,33 @@ function sourceLabel(entry: CharTagEntry): string {
         </div>
         <span class="bbi-field-hint">只写固定基础特征;服装、表情、动作不入库,每次按剧情生成。</span>
 
+        <!-- 按用户要求补充:描述交给 AI 拆进上面的字段,结果先进草稿 -->
+        <div v-if="supplementOpen" class="bbi-char-supplement">
+          <span class="bbi-modal-label">按用户要求补充</span>
+          <BbiTextarea
+            v-model="supplementText"
+            :rows="2"
+            :max-rows="5"
+            placeholder="用一段话描述要补什么,如「她是《原神》的甘雨,银发红瞳,总是穿黑色哥特裙」;写到的栏目由 AI 填入/更新,没提到的保持原样"
+          />
+          <div class="bbi-cardglobal-foot">
+            <span class="bbi-field-hint">AI 只改你写到的栏目;结果先进下方字段,点「完成」才保存。</span>
+            <span class="bbi-modal-foot-spacer"></span>
+            <button class="bbi-btn" type="button" :disabled="supplementing" @click="supplementOpen = false">
+              收起
+            </button>
+            <button
+              class="bbi-btn"
+              type="button"
+              title="把描述和当前档案一起交给 AI,合并出更新后的字段"
+              :disabled="supplementing || !supplementText.trim()"
+              @click="runSupplement"
+            >
+              <Icon name="sparkles" /> {{ supplementing ? '补充中…' : '开始补充' }}
+            </button>
+          </div>
+        </div>
+
         <label class="bbi-modal-field">
           <span class="bbi-modal-label">整串模式(可选)</span>
           <BbiTextarea
@@ -705,6 +768,14 @@ function sourceLabel(entry: CharTagEntry): string {
             @click="copyToChat"
           >
             <Icon name="copy" /> 复制到本聊天
+          </button>
+          <button
+            class="bbi-btn"
+            type="button"
+            title="输入一段描述,AI 把其中的外貌信息拆进对应栏目;没提到的栏目保持原样"
+            @click="supplementOpen = !supplementOpen"
+          >
+            <Icon name="sparkles" /> 按用户要求补充
           </button>
           <button
             class="bbi-btn"
@@ -1046,6 +1117,17 @@ function sourceLabel(entry: CharTagEntry): string {
   font-size: 12px;
   font-weight: 600;
   color: var(--bbi-ink-soft);
+}
+
+/* —— 按用户要求补充:外貌字段下的内嵌输入面板(与历史面板同款边框卡片) —— */
+.bbi-char-supplement {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--bbi-line);
+  border-radius: var(--bbi-radius-sm);
+  background: var(--bbi-surface-2);
 }
 
 /* —— 弹窗内历史面板 —— */
