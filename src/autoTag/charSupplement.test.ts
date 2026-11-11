@@ -83,6 +83,14 @@ describe('supplementCharTags', () => {
     expect(options.source).toBe('角色外貌补充');
   });
 
+  it('labels the request section 世界书条目内容 when a custom label is given', async () => {
+    vi.mocked(requestViaMainApi).mockResolvedValue('{"hair":"银色长发"}');
+    await supplementCharTags('甘雨', '银发,红瞳', emptyCharFields(), undefined, '世界书条目内容');
+    const [messages] = vi.mocked(requestViaMainApi).mock.calls[0] as [ChatMsg[], unknown];
+    expect(messages[1].content).toContain('世界书条目内容：');
+    expect(messages[1].content).not.toContain('用户描述：');
+  });
+
   it('throws a readable error when the model output is unparseable', async () => {
     vi.mocked(requestViaMainApi).mockResolvedValue('(空)');
     await expect(

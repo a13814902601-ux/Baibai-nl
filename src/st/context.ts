@@ -184,6 +184,60 @@ export async function getCheckWorldInfo(): Promise<CheckWorldInfoFn | null> {
   }
 }
 
+/** 世界书条目(loadWorldInfo 返回的 entries 成员;只声明 UI 选条目用到的字段)。 */
+export interface WorldBookEntryData {
+  uid?: number;
+  /** 条目标题(ST 界面里的「备注」列) */
+  comment?: string;
+  content?: string;
+  /** 触发关键词(标题缺省时的展示回退) */
+  key?: unknown[];
+  /** ST 旧字段 disable / 新字段 enabled=false 都算禁用 */
+  disable?: boolean;
+  enabled?: boolean;
+  [k: string]: unknown;
+}
+
+/** loadWorldInfo(书名) 的返回形态;entries 可能是 uid 键对象或数组,两种都收。 */
+export interface WorldBookData {
+  entries?: Record<string, WorldBookEntryData> | WorldBookEntryData[];
+  [k: string]: unknown;
+}
+
+type LoadWorldInfoFn = (name: string) => Promise<WorldBookData | null | undefined>;
+
+/**
+ * 取 ST 的 loadWorldInfo(getContext 未暴露,从 /scripts/world-info.js 动态取)。
+ * 与 checkWorldInfo 不同:它**按书名加载整本**(不扫描、不看激活),供角色管理页
+ * 浏览当前卡世界书的全部条目。取不到(旧版/路径变动)返回 null,调用方降级提示。
+ */
+export async function getLoadWorldInfo(): Promise<LoadWorldInfoFn | null> {
+  try {
+    const wiPath = '/scripts/world-info.js';
+    const mod: Record<string, unknown> = await import(/* @vite-ignore */ wiPath);
+    const fn = mod.loadWorldInfo;
+    return typeof fn === 'function' ? (fn as LoadWorldInfoFn) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 当前角色卡绑定的世界书名(ST 把「角色世界书」存在卡数据 data.extensions.world)。
+ * 群聊 / 未打开聊天 / 卡没绑书 → null。
+ */
+export function currentCharacterWorldBookName(): string | null {
+  const ctx = getContext();
+  if (!ctx || ctx.groupId) return null;
+  const idx = ctx.characterId;
+  if (idx === undefined || idx === null || idx === '') return null;
+  const character = ctx.characters?.[Number(idx)] as
+    | { data?: { extensions?: { world?: unknown } } }
+    | undefined;
+  const world = character?.data?.extensions?.world;
+  return typeof world === 'string' && world.trim() ? world.trim() : null;
+}
+
 /**
  * ST-Prompt-Template(提示词模板插件)挂在 globalThis 的执行器接口(见其 exports.ts)。
  * 只用到 prepareContext + evalTemplate:前者备好含变量/世界书上下文的 env,

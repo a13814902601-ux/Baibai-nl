@@ -39,7 +39,12 @@ import {
   type CardGlobalField,
   type CardGlobalPreset,
 } from '@/state/cardGlobal';
-import { getContext } from '@/st/context';
+import {
+  getContext,
+  getLoadWorldInfo,
+  currentCharacterWorldBookName,
+  type WorldBookEntryData,
+} from '@/st/context';
 import { computed, ref, watch } from 'vue';
 
 /**
@@ -73,6 +78,20 @@ const regenerating = ref(false);
 const supplementOpen = ref(false);
 const supplementText = ref('');
 const supplementing = ref(false);
+// 按世界书生成:选当前卡世界书的一条条目,交给 AI 合并进字段
+const worldBookOpen = ref(false);
+const worldBookName = ref<string | null>(null);
+const worldBookLoading = ref(false);
+const worldBookEntries = ref<WorldBookEntryItem[]>([]);
+const worldBookSelected = ref<number | null>(null);
+const worldBookRunning = ref(false);
+
+interface WorldBookEntryItem {
+  uid: number;
+  title: string;
+  content: string;
+  disabled: boolean;
+}
 // 弹窗内历史面板开关
 const historyOpen = ref(false);
 // 回滚确认
@@ -152,6 +171,8 @@ function openEntry(entry: CharTagEntry, scope: Scope) {
   historyOpen.value = false;
   supplementOpen.value = false;
   supplementText.value = '';
+  worldBookOpen.value = false;
+  worldBookSelected.value = null;
 }
 
 function addEntry(scope: Scope = 'chat') {
@@ -164,6 +185,8 @@ function addEntry(scope: Scope = 'chat') {
   historyOpen.value = false;
   supplementOpen.value = false;
   supplementText.value = '';
+  worldBookOpen.value = false;
+  worldBookSelected.value = null;
 }
 
 /* —— 分区折叠(参照柏宝书「计划/悬念」)——
@@ -247,6 +270,8 @@ function closeEntry() {
   historyOpen.value = false;
   supplementOpen.value = false;
   supplementText.value = '';
+  worldBookOpen.value = false;
+  worldBookSelected.value = null;
 }
 
 /** 手动编辑过的字段 → 条目归手动(但仍可被 AI 变更接管) */
@@ -360,29 +385,126 @@ async function regenerateFromBook() {
   }
 }
 
-/* —— 按用户要求补充:描述 + 当前档案交给 AI 合并,非空字段才覆盖,改动先进草稿 —— */
+/* —— 按用户要求补充 / 按世界书生成:描述 + 当前档案交给 AI 合并 —— */
+
+/** 把补充结果合并进草稿字段(非空才覆盖,模型失误清不掉用户字段);返回覆盖的栏目数。 */
+function applySupplementResult(d: Draft, result: Partial<Record<CharTagField, string>>): number {
+  const applied = CHAR_TAG_FIELDS.filter(f => result[f]);
+  for (const f of applied) d.fields[f] = result[f]!;
+  if (applied.length) {
+    // 字段一旦有值,整串模式就不再生效(buildEntryTag 只在字段全空时用整串),清掉避免「看着有却没用」
+    if (d.raw.trim()) d.raw = '';
+    markManual();
+  }
+  return applied.length;
+}
+
 async function runSupplement() {
   const d = draft.value;
   if (!d || !supplementText.value.trim() || supplementing.value) return;
   supplementing.value = true;
   try {
     const result = await supplementCharTags(d.name.trim() || '（未命名）', supplementText.value, d.fields);
-    const applied = CHAR_TAG_FIELDS.filter(f => result[f]);
-    if (!applied.length) {
+    if (!applySupplementResult(d, result)) {
       toastr.info('描述里没有识别到可补充的外貌信息,试试写得更具体些', '柏宝绘');
       return;
     }
-    for (const f of applied) d.fields[f] = result[f]!;
-    // 字段一旦有值,整串模式就不再生效(buildEntryTag 只在字段全空时用整串),清掉避免「看着有却没用」
-    if (d.raw.trim()) d.raw = '';
-    markManual();
     supplementOpen.value = false;
     supplementText.value = '';
-    toastr.success(`已按描述补充 ${applied.length} 个栏目,点「完成」保存`, '柏宝绘');
+    toastr.success('已按描述补充外貌字段,点「完成」保存', '柏宝绘');
   } catch (error) {
     toastr.error(error instanceof Error ? error.message : String(error), '柏宝绘');
   } finally {
     supplementing.value = false;
+  }
+}
+
+/* —— 按世界书生成:浏览当前卡绑定的世界书,选一条条目交给 AI 合并字段 —— */
+
+function toggleWorldBookPanel() {
+  worldBookOpen.value = !worldBookOpen.value;
+  // 每次展开都重拉:书可能被编辑,缓存只会带来「列表是旧的」困惑
+  if (worldBookOpen.value) void loadWorldBookEntries();
+}
+
+/** 条目标题:备注优先,缺省用关键词,再缺省「未命名条目」。 */
+function worldBookEntryTitle(e: WorldBookEntryData): string {
+  if (typeof e.comment === 'string' && e.comment.trim()) return e.comment.trim();
+  const keys = Array.isArray(e.key)
+    ? e.key.filter((k): k is string => typeof k === 'string' && !!k.trim()).join('、')
+    : '';
+  return keys || '未命名条目';
+}
+
+async function loadWorldBookEntries() {
+  // 首两行同步执行:点开面板的当帧就把书名/清空选择定下来,避免闪烁「没有绑定世界书」
+  const name = currentCharacterWorldBookName();
+  worldBookName.value = name;
+  worldBookSelected.value = null;
+  if (!name) {
+    worldBookEntries.value = [];
+    return;
+  }
+  worldBookLoading.value = true;
+  try {
+    const load = await getLoadWorldInfo();
+    if (!load) {
+      toastr.warning('当前 ST 取不到世界书加载接口,请手动填写字段', '柏宝绘');
+      worldBookEntries.value = [];
+      return;
+    }
+    const book = await load(name);
+    const raw = book?.entries;
+    const list: WorldBookEntryData[] = Array.isArray(raw) ? raw : Object.values(raw ?? {});
+    const items: WorldBookEntryItem[] = [];
+    list.forEach((e, i) => {
+      const content = typeof e?.content === 'string' ? e.content.trim() : '';
+      if (!content) return;
+      items.push({
+        uid: typeof e.uid === 'number' ? e.uid : i,
+        title: worldBookEntryTitle(e),
+        content,
+        disabled: e.disable === true || e.enabled === false,
+      });
+    });
+    worldBookEntries.value = items;
+  } catch (error) {
+    toastr.error(error instanceof Error ? error.message : String(error), '柏宝绘');
+  } finally {
+    worldBookLoading.value = false;
+  }
+}
+
+const selectedWorldBookEntry = computed(
+  () => worldBookEntries.value.find(e => e.uid === worldBookSelected.value) ?? null,
+);
+
+async function runWorldBookGenerate() {
+  const d = draft.value;
+  const entry = selectedWorldBookEntry.value;
+  if (!d || !entry || worldBookRunning.value) return;
+  worldBookRunning.value = true;
+  try {
+    // 条目里常见 {{char}}/{{user}} 宏,先按当前上下文展开再交给模型
+    const ctx = getContext();
+    const content = typeof ctx?.substituteParams === 'function' ? ctx.substituteParams(entry.content) : entry.content;
+    const result = await supplementCharTags(
+      d.name.trim() || '（未命名）',
+      content,
+      d.fields,
+      undefined,
+      '世界书条目内容',
+    );
+    if (!applySupplementResult(d, result)) {
+      toastr.info(`条目「${entry.title}」里没有识别到可用的外貌信息`, '柏宝绘');
+      return;
+    }
+    worldBookOpen.value = false;
+    toastr.success(`已按条目「${entry.title}」更新外貌字段,点「完成」保存`, '柏宝绘');
+  } catch (error) {
+    toastr.error(error instanceof Error ? error.message : String(error), '柏宝绘');
+  } finally {
+    worldBookRunning.value = false;
   }
 }
 
@@ -698,6 +820,54 @@ function sourceLabel(entry: CharTagEntry): string {
           </div>
         </div>
 
+        <!-- 按世界书生成:选当前卡世界书的一条条目,交给 AI 合并字段 -->
+        <div v-if="worldBookOpen" class="bbi-char-supplement">
+          <span class="bbi-modal-label">按世界书生成</span>
+          <p v-if="!worldBookName" class="bbi-field-hint">
+            当前角色卡没有绑定世界书(ST 角色编辑里「角色世界书」字段为空),或当前是群聊。
+          </p>
+          <template v-else>
+            <p class="bbi-field-hint">
+              书:{{ worldBookName }} — 选中一条条目,AI 参考它更新外貌字段;没提到的栏目保持原样。
+            </p>
+            <p v-if="worldBookLoading" class="bbi-field-hint">条目加载中…</p>
+            <p v-else-if="!worldBookEntries.length" class="bbi-field-hint">这本书里没有带正文的条目。</p>
+            <ul v-else class="bbi-wb-list">
+              <li v-for="e in worldBookEntries" :key="e.uid">
+                <button
+                  type="button"
+                  class="bbi-wb-item"
+                  :class="{ 'is-selected': worldBookSelected === e.uid, 'is-disabled': e.disabled }"
+                  :title="e.content"
+                  @click="worldBookSelected = e.uid"
+                >
+                  <span class="bbi-wb-title">
+                    {{ e.title }}
+                    <span v-if="e.disabled" class="bbi-wb-flag">禁用</span>
+                  </span>
+                  <span class="bbi-wb-snippet">{{ e.content }}</span>
+                </button>
+              </li>
+            </ul>
+            <div class="bbi-cardglobal-foot">
+              <span class="bbi-field-hint">结果先进上方字段,点「完成」才保存。</span>
+              <span class="bbi-modal-foot-spacer"></span>
+              <button class="bbi-btn" type="button" :disabled="worldBookRunning" @click="worldBookOpen = false">
+                收起
+              </button>
+              <button
+                class="bbi-btn"
+                type="button"
+                title="把选中条目和当前档案一起交给 AI,合并出更新后的字段"
+                :disabled="worldBookRunning || !selectedWorldBookEntry"
+                @click="runWorldBookGenerate"
+              >
+                <Icon name="sparkles" /> {{ worldBookRunning ? '生成中…' : '用这条生成' }}
+              </button>
+            </div>
+          </template>
+        </div>
+
         <label class="bbi-modal-field">
           <span class="bbi-modal-label">整串模式(可选)</span>
           <BbiTextarea
@@ -774,6 +944,14 @@ function sourceLabel(entry: CharTagEntry): string {
             @click="copyToChat"
           >
             <Icon name="copy" /> 复制到本聊天
+          </button>
+          <button
+            class="bbi-btn"
+            type="button"
+            title="从当前角色卡绑定的世界书里选一条条目,AI 参考它更新外貌字段;没提到的栏目保持原样"
+            @click="toggleWorldBookPanel"
+          >
+            <Icon name="lorebook" /> 按世界书生成
           </button>
           <button
             class="bbi-btn"
@@ -1134,6 +1312,67 @@ function sourceLabel(entry: CharTagEntry): string {
   border: 1px solid var(--bbi-line);
   border-radius: var(--bbi-radius-sm);
   background: var(--bbi-surface-2);
+}
+
+/* —— 世界书条目列表:与变更历史同款滚动容器,可点选行 —— */
+.bbi-wb-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.bbi-wb-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 10px;
+  border: 1px solid var(--bbi-line);
+  border-radius: var(--bbi-radius-sm);
+  background: var(--bbi-surface);
+  color: var(--bbi-ink);
+  font-family: var(--bbi-font-sans);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.bbi-wb-item:hover {
+  border-color: var(--bbi-accent);
+}
+.bbi-wb-item.is-selected {
+  border-color: var(--bbi-accent);
+  background: var(--bbi-accent-soft);
+}
+.bbi-wb-item.is-disabled .bbi-wb-title,
+.bbi-wb-item.is-disabled .bbi-wb-snippet {
+  color: var(--bbi-ink-muted);
+}
+.bbi-wb-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  min-width: 0;
+}
+.bbi-wb-flag {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: var(--bbi-radius-pill);
+  color: var(--bbi-warning);
+  background: var(--bbi-warning-soft);
+}
+.bbi-wb-snippet {
+  font-size: 12px;
+  color: var(--bbi-ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* —— 弹窗内历史面板 —— */

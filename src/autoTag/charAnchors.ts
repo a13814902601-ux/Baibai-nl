@@ -237,6 +237,8 @@ export async function supplementCharTags(
   request: string,
   fields: Record<CharTagField, string>,
   signal?: AbortSignal,
+  /** 请求里对这段描述的称呼(默认「用户描述」;世界书条目路径传「世界书条目内容」)。 */
+  label = '用户描述',
 ): Promise<Partial<Record<CharTagField, string>>> {
   const specLines = CHAR_TAG_FIELDS.map(
     f => `- ${CHAR_TAG_FIELD_LABELS[f]}：${fields[f]?.trim() || '（空）'}`,
@@ -245,7 +247,7 @@ export async function supplementCharTags(
     { role: 'system', content: SUPPLEMENT_SPEC },
     {
       role: 'user',
-      content: `角色名：${name}\n\n当前档案：\n${specLines}\n\n用户描述：\n${request.trim()}`,
+      content: `角色名：${name}\n\n当前档案：\n${specLines}\n\n${label}：\n${request.trim()}`,
     },
   ];
   const channel = getTagGenChannel();

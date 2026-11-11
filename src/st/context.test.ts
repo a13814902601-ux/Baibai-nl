@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { isAiStoryMessage, isStoryMessage, type STMessage } from '@/st/context';
+import {
+  currentCharacterWorldBookName,
+  isAiStoryMessage,
+  isStoryMessage,
+  type STContext,
+  type STMessage,
+} from '@/st/context';
 
 function msg(over: Partial<STMessage> = {}): STMessage {
   return { name: 'Char', is_user: false, is_system: false, mes: '她推开门。', ...over };
@@ -43,5 +49,73 @@ describe('isAiStoryMessage', () => {
     expect(isAiStoryMessage(msg({ is_user: true }))).toBe(false);
     expect(isAiStoryMessage(msg({ is_system: true, extra: { type: 'narrator' } }))).toBe(false);
     expect(isAiStoryMessage(undefined)).toBe(false);
+  });
+});
+
+describe('currentCharacterWorldBookName', () => {
+  // getContext 走 window.SillyTavern;单测里造一个最小假宿主
+  let windowHolder: { window?: unknown } = globalThis as { window?: unknown };
+
+  function fakeContext(over: Partial<STContext> = {}): STContext {
+    return {
+      chat: [],
+      chatMetadata: {},
+      name1: 'User',
+      name2: 'Char',
+      getCurrentChatId: () => 'chat-a',
+      getRequestHeaders: () => ({}),
+      saveMetadataDebounced: () => undefined,
+      saveChat: async () => undefined,
+      eventSource: { on: () => undefined },
+      eventTypes: {} as STContext['eventTypes'],
+      ...over,
+    };
+  }
+
+  beforeEach(() => {
+    windowHolder = globalThis as { window?: unknown };
+  });
+
+  afterEach(() => {
+    delete windowHolder.window;
+  });
+
+  it('reads data.extensions.world of the current single-chat character', () => {
+    windowHolder.window = {
+      SillyTavern: {
+        getContext: () =>
+          fakeContext({
+            characterId: 1,
+            characters: [
+              { name: 'A', avatar: 'a.png' },
+              { name: 'B', avatar: 'b.png', data: { extensions: { world: ' 设定集 ' } } },
+            ],
+          }),
+      },
+    };
+    expect(currentCharacterWorldBookName()).toBe('设定集');
+  });
+
+  it('returns null for group chat, missing id, or card without a book', () => {
+    const withChar = (over: Partial<STContext>) =>
+      windowHolder.window = {
+        SillyTavern: { getContext: () => fakeContext(over) },
+      };
+
+    withChar({ characterId: 0, characters: [{ name: 'A', avatar: 'a.png' }] });
+    expect(currentCharacterWorldBookName()).toBeNull();
+
+    withChar({ characterId: '', characters: [{ name: 'A', avatar: 'a.png' }] });
+    expect(currentCharacterWorldBookName()).toBeNull();
+
+    withChar({
+      characterId: 0,
+      groupId: 'g1',
+      characters: [{ name: 'A', avatar: 'a.png', data: { extensions: { world: '书' } } }],
+    });
+    expect(currentCharacterWorldBookName()).toBeNull();
+
+    windowHolder.window = undefined;
+    expect(currentCharacterWorldBookName()).toBeNull();
   });
 });
