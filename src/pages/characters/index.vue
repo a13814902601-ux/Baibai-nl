@@ -64,13 +64,13 @@ const confirmRollbackOpen = ref(false);
 const pendingRollback = ref<{ name: string; record: CharTagChangeRecord } | null>(null);
 
 const FIELD_PLACEHOLDERS: Record<CharTagField, string> = {
-  fandom: '同人角色填: character name (copyright name), 不带转义括号; 原创留空',
-  sex: '如 1girl / 1boy',
-  hair: '如 long black hair',
-  eyes: '如 red eyes',
-  skin: '如 pale skin(可不填)',
-  body: '如 petite, small breasts',
-  extra: '如 heterochromia(可不填)',
+  fandom: '同人角色填中文身份「《作品名》的角名」,如「《原神》的甘雨」; 原创留空',
+  sex: '如「少女」/「少年」',
+  hair: '如「乌黑的长发」',
+  eyes: '如「蓝色的眼睛」',
+  skin: '如「晒黑」(可不填)',
+  body: '如「娇小」「胸部丰满」',
+  extra: '如「异色瞳」(可不填)',
   outfit: '固定着装,可不填',
 };
 
@@ -330,7 +330,7 @@ function sourceLabel(entry: CharTagEntry): string {
     <hr class="bbi-rule" />
 
     <p class="bbi-field-hint">
-      角色固定外貌库:生成 tag 时 AI 照抄库中字段,@角色名 占位符也会被替换为库中最新外貌,稳定不漂移。
+      角色固定外貌库:生成提示词时 AI 照抄库中字段值,固定外貌稳定不漂移。
     </p>
 
     <!-- ===== 全局角色库 ===== -->

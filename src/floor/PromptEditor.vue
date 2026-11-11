@@ -283,14 +283,14 @@ onBeforeUnmount(() => {
       </p>
 
       <div class="bbi-modal-field">
-        <span class="bbi-modal-label">画面 tag(danbooru 短 tag,逗号分隔)</span>
+        <span class="bbi-modal-label">画面 tag(存量英文 tag 串;Baibai-nl 新图此栏为空,提示词写在 nl 栏)</span>
         <BbiTextarea
           v-model="tag"
           class="bbi-prompt-area"
           :rows="4"
           :max-rows="14"
           mono
-          placeholder="1girl, long black hair, school uniform, classroom"
+          placeholder="(存量数据)如 1girl, long black hair, school uniform"
         />
       </div>
 

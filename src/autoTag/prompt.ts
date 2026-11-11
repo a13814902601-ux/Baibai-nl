@@ -265,7 +265,7 @@ export async function buildAutoTagMessages(
 
   const libraryReferenceRule = naiCharPromptsOn
     ? `- If a visible character exists in the fixed appearance library or is created in this changes array, copy the fixed fields into that character own characters[].tag; keep appearance wording verbatim but convert 1girl/1boy to girl/boy. The fandom identity tag (fields.fandom) goes first, verbatim. Do not put them in Base or assign them to another character.${nlOn ? ' Library natural-language notes may inform that character nl.' : ''} Use the library entry name verbatim for characters[].name and for any name inside ${nlOn ? 'tag/nl' : 'tag'} — never transliterate, translate, or vary it.`
-    : '- 画面中的角色只要已在【角色固定外貌库】，或在本次 changes 中建了档，nl 中必须把该角色的固定外貌按库中/刚建档的字段值转写为等价的自然中文（long black hair → 乌黑的长发），信息一字不增不减，不得自行改写或增删。fandom 字段只作档案记录，画图时不照抄；同人身份用「《作品名》的角名」在 nl 中自然表明。\n   - 同一角色的固定外貌在一张图里只念一次：再次提到他时用简短指代（那个男孩、银发少女）承接，禁止把整串外貌重复第二遍——重复会让模型以为画面里有多个同样的人，把一个人画成互不相连的几块。';
+    : '- 画面中的角色只要已在【角色固定外貌库】，或在本次 changes 中建了档，nl 中直接照抄库中/刚建档的字段值写进描写（字段值本身就是自然中文短语；旧数据里的英文 tag 先转写成等价中文再写，不照抄英文），信息一字不增不减，不得自行改写或增删。fandom 字段只作档案记录，画图时不照抄；同人身份用「《作品名》的角名」在 nl 中自然表明。\n   - 同一角色的固定外貌在一张图里只念一次：再次提到他时用简短指代（那个男孩、银发少女）承接，禁止把整串外貌重复第二遍——重复会让模型以为画面里有多个同样的人，把一个人画成互不相连的几块。';
   // 建档 nl 只在协议含 nl 时要求(runner 的验收同一口径,见 autoTagProfile)
   const newCharacterNlRule = !naiCharPromptsOn
     ? ''
@@ -276,11 +276,11 @@ export async function buildAutoTagMessages(
    - **建档先于画图**：先通读目标正文，找出每个有名有姓、且【角色固定外貌库】里还没有的正式角色——只要角色卡、世界书、柏宝书或持续剧情为他给出了设定，或他是持续参与剧情的角色，首次出场就必须建档，不论他是否入选本次图片。判断依据是发给你的全部设定内容，由你自己通读判断。一次性无名路人不建。
    - **建档资格与入画资格是两回事**：不建档只表示他不进角色库，不表示他不能入画；已建档也不表示他必须入画。先按本图的主体和核心互动取景，再为镜头内的人写外貌，不按档案状态决定取舍。无名角色若是核心互动的参与者，照常入画，不得仅因缺档案放弃画面、改选瞬间或裁掉他；仅仅在场不构成入画理由，无关在场者可以留在镜头外。
    - “已建档”只能按【角色固定外貌库】区块中的同名条目判断：只有名字实际列在该区块中才算已建档；世界书、角色卡、柏宝书或正文里的详细设定只是建档依据，绝不等于已经在库。每个在场正式角色必须二选一：指出库中的同名条目，或在 changes 中输出 field:"new"。一次性无名角色不在这条二选一之内：他既不建档也不写 changes，不需要指出任何库条目，缺档案是正常状态而非遗漏。
-   - 建档写法：{"name":"角色名","field":"new","fields":{"sex":"1girl","hair":"long black hair","eyes":"blue eyes"},"position":"P2","reason":"首次出场建档"}；position 填他首次出现的位置，仅作记录——建档在本楼全程有效，本楼任意位置的图片都可以立即使用这套外貌。
-   - 建档字段只放**长期不变的身体特征**：sex/hair/eyes/skin/body/extra 填性别、发色发型、瞳色、肤色、体型、标志特征；outfit 只填该角色**固定不换的招牌着装**；判定为同人角色的，fields 里必须写 fandom（模型可识别的英文 Danbooru 身份 tag，格式 character name (copyright name)），原创角色不写 fandom。动作、姿势、所在场景、临时状态（lying on carpet、standing、sitting、unzipped、湿身、伤势等）一律不得写进任何字段——档案会在他之后每一张图里被照抄，把姿势写进去会让他在所有画面里都保持那个姿势。
+   - 建档写法：{"name":"角色名","field":"new","fields":{${naiCharPromptsOn ? '"sex":"1girl","hair":"long black hair","eyes":"blue eyes"' : '"sex":"少女","hair":"乌黑的长发","eyes":"蓝色的眼睛"'}},"position":"P2","reason":"首次出场建档"}；position 填他首次出现的位置，仅作记录——建档在本楼全程有效，本楼任意位置的图片都可以立即使用这套外貌。
+   - 建档字段只放**长期不变的身体特征**：sex/hair/eyes/skin/body/extra 填性别、发色发型、瞳色、肤色、体型、标志特征（Baibai-nl：全部用自然中文短语填写，如「乌黑的长发」）；outfit 只填该角色**固定不换的招牌着装**；判定为同人角色的，fields 里必须写 fandom（${naiCharPromptsOn ? '模型可识别的英文 Danbooru 身份 tag，格式 character name (copyright name)' : '中文身份「《作品名》的角名」，如「《原神》的甘雨」'}），原创角色不写 fandom。动作、姿势、所在场景、临时状态（lying on carpet、standing、sitting、unzipped、湿身、伤势等）一律不得写进任何字段——档案会在他之后每一张图里被照抄，把姿势写进去会让他在所有画面里都保持那个姿势。
    - 建档取值优先级：目标正文明确的当前外貌 > 柏宝书当前角色状态 > 角色卡/世界书明确人设 > 合理补全。人设明确写了颜色时必须原样转换，不得擅改；hair 与 eyes 必填，hair 至少包含发色和长度/发型，eyes 必须包含瞳色，缺任一项该条建档会被丢弃。
    - 如果设定没写发色、发型或瞳色，根据世界观、种族、身份、性格和其余角色设定补出简洁、协调、可长期复用的颜色与发型；这是一次性建档决定，后续不得重新随机。
-   - 建完档就直接用：同一次输出里，先在 changes 里确立该角色的固定外貌，再在图片 ${naiCharPromptsOn ? 'characters[].tag' : 'nl'} 中${naiCharPromptsOn ? '照抄这套外貌' : '把这套外貌转写为等价自然中文'}，并围绕它补充服装、动作、场景等其余${naiCharPromptsOn ? 'tag' : '描写'}；同一张图里这套外貌只写一遍。${newCharacterNlRule}`;
+   - 建完档就直接用：同一次输出里，先在 changes 里确立该角色的固定外貌，再在图片 ${naiCharPromptsOn ? 'characters[].tag' : 'nl'} 中${naiCharPromptsOn ? '照抄这套外貌' : '把这套外貌直接写进描写（字段值已是自然中文短语）'}，并围绕它补充服装、动作、场景等其余${naiCharPromptsOn ? 'tag' : '描写'}；同一张图里这套外貌只写一遍。${newCharacterNlRule}`;
   const multiCharacterBindingRule = naiCharPromptsOn
     ? '- 多人画面中，每个角色的发色、瞳色、体型、服装、物件和个人动作都必须放进各自的 characters[].tag，禁止放进 Base 或分配给其他角色。'
     : '- 多人画面的 nl 里，每个角色的发色、瞳色、体型、服装、物件和个人动作都必须写进该角色自己的分述句并带区分性称谓，禁止把两人的特征合并在一句里分不清谁是谁。';
@@ -288,8 +288,8 @@ export async function buildAutoTagMessages(
    ${libraryReferenceRule}
    - 按正文 P 位置为每个角色维护临时服装状态：正文未明确初始穿着时可以合理决定一次；没有穿上、脱下、换装、衣物损坏或场景/时间跳跃时沿用上一状态，发生明确变化后从对应 P 位置起更新。首次确定一套临时服装时，必须冻结足以复现款式的“服装视觉指纹”：服装类别之外，再固定版型/剪裁、主色和关键部件，涉及裤袜时固定颜色与透明度；例如不能只写${naiCharPromptsOn ? ' school uniform, pantyhose，而应具体到 navy school blazer, white collared shirt, red ribbon, dark pleated skirt, opaque white pantyhose' : '「校服、裤袜」，而应具体到「深蓝校服西装外套、白衬衫、红色丝带、深色百褶裙、不透肉白裤袜」'}。只补少量关键特征，不堆无关装饰。相同状态复用同一视觉指纹；镜头外不可见的部件可以省略，但省略不等于脱掉，后续重新可见且中间没有变化时必须恢复。每张图的 ${naiCharPromptsOn ? (nlOn ? 'tag 与 nl 都' : 'tag 都') : 'nl'}要写出当前镜头可见的关键服装特征。临时穿着不得写进固定 outfit，除非设定明确它是长期不换的招牌着装。
    ${multiCharacterBindingRule}
-   - 库中已有角色发生**永久外貌变化**（染发、剪发、留疤、长大、永久变身、固定造型改变等）时，必须通过 changes 报告：{"name":"角色名","field":"hair","value":"short red hair","position":"P4","reason":"在此处染发并剪短"}；field 只能是 sex/hair/eyes/skin/body/extra/outfit/fandom。
-   - 已建档角色被判定为同人、但档案里没有 fandom 的，必须补一条 changes：{"name":"角色名","field":"fandom","value":"character name (copyright name)","reason":"判定为同人，补身份 tag"}；档案已有 fandom 的直接照抄，不重复报告。
+   - 库中已有角色发生**永久外貌变化**（染发、剪发、留疤、长大、永久变身、固定造型改变等）时，必须通过 changes 报告：{"name":"角色名","field":"hair","value":"${naiCharPromptsOn ? 'short red hair' : '酒红色的短发'}","position":"P4","reason":"在此处染发并剪短"}；field 只能是 sex/hair/eyes/skin/body/extra/outfit/fandom。
+   - 已建档角色被判定为同人、但档案里没有 fandom 的，必须补一条 changes：{"name":"角色名","field":"fandom","value":"${naiCharPromptsOn ? 'character name (copyright name)' : '《作品名》的角名'}","reason":"判定为同人，补身份 tag"}；档案已有 fandom 的直接照抄，不重复报告。
    - 库中带 [locked] 标记的角色是全局锁定档案：无论剧情如何发展，其固定外貌永不变化，**不得为其报告任何 changes**（报了也会被丢弃），画面中始终照抄锁定字段值。
    - 永久变化的 position 是新状态开始生效的位置：该位置之前的图片使用旧档案，该位置及之后使用新档案；多次变化按正文先后分别报告。
    - 假发、美瞳、湿身/污渍、临时发型、包扎、光照导致的颜色变化、姿势等临时状态不写 changes，但连续场景中仍须保持，直到正文明确解除或发生时间/场景跳跃。静态角色卡/世界书中的初始设定不得覆盖角色库里已经发生的后期变化。
@@ -327,7 +327,7 @@ ${characterRule}
   // 解析端(protocol.ts)会先剥掉 think 块再取 JSON,二者配套;按后端取对应的那一份。
   const thinking = backendThinkingPrompt(options, nlOn, naiCharPromptsOn);
   if (thinking) messages.push({ role: 'system', content: thinking });
-  const libraryBlock = library?.trim() || `【角色固定外貌库】[system-maintained; currently empty]\n（当前为空，没有任何角色已建档。世界书、角色卡、柏宝书和正文只提供建档依据；未列在本区块中的正式角色必须通过 field:"new" 建档。）`;
+  const libraryBlock = library?.trim() || `【角色固定外貌库】[系统维护；当前为空]\n（当前为空，没有任何角色已建档。世界书、角色卡、柏宝书和正文只提供建档依据；未列在本区块中的正式角色必须通过 field:"new" 建档。）`;
   const taskBlock = taskNote?.trim() ? `${taskNote.trim()}\n\n` : '';
   const userContent = `${memoryText}\n\n${libraryBlock}\n\n${taskBlock}${previous ? `${previous}\n\n` : ''}--- 目标正文｜${roleLabel(context, targetFloor)} ---\n${preparedTarget.promptText}`;
   messages.push({ role: 'user', content: userContent });

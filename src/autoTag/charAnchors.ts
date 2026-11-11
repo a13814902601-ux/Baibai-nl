@@ -54,9 +54,9 @@ export function buildLibraryText(entries: CharTagEntry[], lockedNames?: Readonly
   if (!entries.length) return '';
   const lines = entries.map(entry => formatEntryForPrompt(entry, lockedNames?.has(entry.name) ?? false));
   const lockedNote = lockedNames?.size
-    ? '; entries marked [locked] are global and immutable: never report changes for them, always copy their fields as-is'
+    ? '；标 [locked] 的是全局锁定档案：不得为其报告任何变化，字段值原样照抄'
     : '';
-  return `【角色固定外貌库】[system-maintained; copy fields verbatim into character prompts${lockedNote}]\n${lines.join('\n')}`;
+  return `【角色固定外貌库】[系统维护；字段值照抄进画面提示词${lockedNote}]\n${lines.join('\n')}`;
 }
 
 /** 旧接口兼容:runner 之外仍有调用方依赖锚定文本形态。 */
@@ -66,15 +66,15 @@ export function buildAnchorText(entries: CharTagEntry[], lockedNames?: ReadonlyS
 
 /* ============ 中文外貌 → 结构化字段 的批量转换 ============ */
 
-const CONVERT_SPEC = `你是外貌 tag 转换器。把给出的角色中文外貌描述拆成固定字段的 danbooru 短 tag:英文小写、逗号分隔、多词用空格连接(不要用下划线)。
+const CONVERT_SPEC = `你是外貌档案转换器。把给出的角色中文外貌描述拆成固定字段的自然中文短语（Baibai-nl:字段值就是中文，不再是英文 tag）。
 
 字段与示例:
-- sex(性别):1girl / 1boy / androgynous 等
-- hair(头发):long black hair / short silver hair 等
-- eyes(眼睛):red eyes / blue eyes 等
-- skin(肤色):tan / dark skin 等(没提就留空;白皙是默认肤色,不需要记录)
-- body(体型):petite / tall / slim / small breasts 等
-- extra(标志特征):heterochromia / scar on cheek / pointy ears 等(没提就留空)
+- sex(性别):少女 / 少年 / 成年女性 / 男性 等
+- hair(头发):乌黑的长发 / 银色短发 等（颜色+长度/发型写在一起）
+- eyes(眼睛):蓝色的眼睛 / 红色的眼睛 等
+- skin(肤色):晒黑 / 深色皮肤 等(没提就留空;白皙是默认肤色,不需要记录)
+- body(体型):娇小 / 高挑 / 纤细 / 胸部丰满 等
+- extra(标志特征):异色瞳 / 脸颊有疤 / 尖耳朵 等(没提就留空)
 
 规则:
 1. 只提取固定基础特征;服装、饰品、状态、表情、动作、场景一律不写。

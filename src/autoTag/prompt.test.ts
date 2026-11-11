@@ -82,7 +82,7 @@ describe('auto tag prompt', () => {
     expect(messages.some(m => m.content.includes('同一事件的相邻动作'))).toBe(true);
     expect(messages.some(m => m.content.includes('两人同框不等于必须横屏'))).toBe(true);
     expect(messages.some(m => m.content.includes('"field":"new"'))).toBe(true);
-    expect(messages.some(m => m.content.includes('"hair":"long black hair","eyes":"blue eyes"'))).toBe(true);
+    expect(messages.some(m => m.content.includes('"hair":"乌黑的长发","eyes":"蓝色的眼睛"'))).toBe(true);
     expect(messages.some(m => m.content.includes('首次出场就必须建档'))).toBe(true);
     expect(messages.some(m => m.content.includes('角色卡、世界书、柏宝书或持续剧情'))).toBe(true);
     expect(messages.some(m => m.content.includes('hair 与 eyes 必填'))).toBe(true);
@@ -96,7 +96,7 @@ describe('auto tag prompt', () => {
     expect(messages.some(m => m.content.includes('"tag":"@小雪'))).toBe(false);
     const user = messages[messages.length - 1];
     expect(user.role).toBe('user');
-    expect(user.content).toContain('【角色固定外貌库】[system-maintained; currently empty]');
+    expect(user.content).toContain('【角色固定外貌库】[系统维护；当前为空]');
     expect(user.content).toContain('当前为空，没有任何角色已建档');
     expect(user.content).not.toContain('上一层');
     expect(user.content).toContain('目标第一行 ⟦P1⟧\n\n目标第三行 ⟦P2⟧');
@@ -247,7 +247,7 @@ describe('auto tag prompt', () => {
     expect(thinkingMsg?.content).toContain('不论他是否入选本次图片');
     expect(thinkingMsg?.content).toContain('建档在本楼全程有效');
     // 建档的 hair 必须带长度/发型:只写颜色的旧措辞会让模型以 black hair 过关。
-    expect(thinkingMsg?.content).toContain('hair 必须同时带发色和长度/发型');
+    expect(thinkingMsg?.content).toContain('hair 必须同时带颜色和长度/发型');
     expect(thinkingMsg?.content).not.toContain('hair 与 eyes 都不得留空');
     // 白皙肤色禁令(ComfyUI 默认肤色已够好,特意提亮会失真):
     // 规范给禁令,思维链第三层给落笔前的检查位;晒黑/深肤色是豁免项。
@@ -724,10 +724,10 @@ describe('auto tag prompt', () => {
     expect(messages.some(m => m.content.includes('@小雪'))).toBe(false);
     expect(messages.some(m => m.content.includes('系统会替换成库中最新 tag'))).toBe(false);
     // 库字段转写等价自然中文 + 一张图只写一遍,是本次的两条核心措辞
-    expect(messages.some(m => m.content.includes('按库中/刚建档的字段值转写为等价的自然中文'))).toBe(true);
+    expect(messages.some(m => m.content.includes('直接照抄库中/刚建档的字段值写进描写'))).toBe(true);
     expect(messages.some(m => m.content.includes('只写一遍'))).toBe(true);
     expect(messages[messages.length - 1].content).toContain(library);
-    expect(messages[messages.length - 1].content).not.toContain('currently empty');
+    expect(messages[messages.length - 1].content).not.toContain('当前为空');
   });
 
   it('forbids poses and scenes from entering the appearance profile', async () => {

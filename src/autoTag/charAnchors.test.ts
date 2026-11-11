@@ -56,7 +56,7 @@ describe('formatEntryForPrompt / buildLibraryText', () => {
     );
     expect(text).toContain('- 小雪 [locked]: 性别=1girl');
     expect(text).toContain('- 张三: 性别=1boy');
-    expect(text).toContain('[locked] are global and immutable');
+    expect(text).toContain('[locked] 的是全局锁定档案');
     // 无锁定名时头部保持原样(不带锁定说明)
     expect(buildLibraryText([entry('小雪', { sex: '1girl' })])).not.toContain('immutable');
   });
