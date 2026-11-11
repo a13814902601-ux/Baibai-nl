@@ -2,13 +2,20 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { simpleDefaults } from '@/backends/comfyTemplates';
 import {
-  generateComfyImage,
+  clampSeed,
+  clearSeedCapsCache,
   ComfyUIError,
+  generateComfyImage,
   parseWorkflowTemplate,
   randomSeed,
   renderWorkflowTemplate,
+  SAFE_SEED_MAX,
+  seedCapsForWorkflow,
   type ComfyWorkflow,
 } from '@/backends/comfyui';
+import type { ComfyRunConn } from '@/state/settings';
+
+type JsonObject = Record<string, unknown>;
 
 const TEMPLATE = JSON.stringify({
   '3': {
@@ -24,22 +31,159 @@ function seedOf(workflow: ComfyWorkflow): unknown {
 afterEach(() => vi.restoreAllMocks());
 
 describe('randomSeed', () => {
-  // Baibai-nl:上限收窄到 94967296(移植自本机 dist 的 seedfix 补丁)
-  it('returns an integer in [0, 94967296)', () => {
+  // Baibai-nl(seedcap):生成端回到 2^53 全幅;越界防护移到出图前的 applySeedCap
+  it('returns an integer in [0, 2**53)', () => {
     const seed = randomSeed();
     expect(Number.isInteger(seed)).toBe(true);
     expect(seed).toBeGreaterThanOrEqual(0);
-    expect(seed).toBeLessThan(94967296);
+    expect(seed).toBeLessThan(2 ** 53);
   });
 
-  it('is derived from Math.random (capped range for node compatibility)', () => {
+  it('is derived from Math.random', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    expect(randomSeed()).toBe(Math.floor(0.5 * 94967296));
+    expect(randomSeed()).toBe(Math.floor(0.5 * 2 ** 53));
   });
 
   it('produces different seeds across calls', () => {
     const seeds = new Set(Array.from({ length: 50 }, () => randomSeed()));
     expect(seeds.size).toBeGreaterThan(1);
+  });
+});
+
+describe('Baibai-nl seedcap（种子按节点声明范围夹紧）', () => {
+  it('clampSeed：范围内的原样保留，越界的按模长折回，区间不合法返回 null', () => {
+    expect(clampSeed(42, 0, 100)).toBe(42);
+    expect(clampSeed(2 ** 53 - 1, 0, 2 ** 31 - 1)).toBe((2 ** 53 - 1) % 2 ** 31);
+    // 负数走同一条折回路径(种子生成端不会给负数,这里只锁数学行为)
+    expect(clampSeed(-5, 0, 10)).toBe(0 + (-5 % 11));
+    expect(clampSeed(1, 5, 3)).toBeNull();
+  });
+
+  it('seedCapsForWorkflow：取工作流全部种子输入声明范围的交集', () => {
+    const workflow: ComfyWorkflow = {
+      '3': { class_type: 'KSampler', inputs: { seed: 1 } },
+      '9': { class_type: 'Krea2ImageNode', inputs: { seed: 2 } },
+    };
+    const info: JsonObject = {
+      KSampler: { input: { required: { seed: ['INT', { min: 0, max: 18446744073709551615 }] } } },
+      Krea2ImageNode: { input: { required: { seed: ['INT', { min: 0, max: 2147483647 }] } } },
+    };
+    expect(seedCapsForWorkflow(workflow, info)).toEqual({ min: 0, max: 2147483647 });
+  });
+
+  it('seedCapsForWorkflow：节点缺声明时跳过该节点，不猜', () => {
+    const workflow: ComfyWorkflow = {
+      '3': { class_type: 'KSampler', inputs: { seed: 1 } },
+      '7': { class_type: 'SomeUnknownNode', inputs: { seed: 1 } },
+    };
+    const info: JsonObject = {
+      // 2^64-1 超出 Number.MAX_SAFE_INTEGER,取交集时会被 2^53 封顶——这正是实现应做的
+      KSampler: { input: { required: { seed: ['INT', { min: 0, max: Number.MAX_SAFE_INTEGER }] } } },
+    };
+    expect(seedCapsForWorkflow(workflow, info)).toEqual({ min: 0, max: Number.MAX_SAFE_INTEGER });
+  });
+
+  it('seedCapsForWorkflow：一个种子输入都没有时返回 null', () => {
+    const workflow: ComfyWorkflow = { '5': { class_type: 'CLIPTextEncode', inputs: { text: 'x' } } };
+    expect(seedCapsForWorkflow(workflow, {})).toBeNull();
+  });
+
+  // 两个 mock 出图用例共用:抓 /prompt 请求体里的工作流 JSON
+  function capturedPromptWorkflow(mock: ReturnType<typeof vi.spyOn>): JsonObject {
+    const call = mock.mock.calls.find(([u]) => String(u).endsWith('/prompt'));
+    const body = JSON.parse(String((call?.[1] as RequestInit | undefined)?.body)) as JsonObject;
+    return (body.prompt ?? {}) as JsonObject;
+  }
+
+  /** mock fetch:object_info 按 info 响应;排队成功后 history 返回一张假图让轮询立即收敛。 */
+  function mockComfyRoundTrip(info: JsonObject | null) {
+    return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('object_info')) {
+        return info
+          ? new Response(JSON.stringify(info), { status: 200 })
+          : new Response('{}', { status: 500 });
+      }
+      if (url.endsWith('/prompt')) {
+        // 记下请求体供断言;队列直接给 prompt_id
+        void init;
+        return new Response(JSON.stringify({ prompt_id: 'p_test' }), { status: 200 });
+      }
+      if (url.includes('/history/')) {
+        const done = {
+          p_test: {
+            status: { status_str: 'success', completed: true, messages: [] },
+            outputs: { o1: { images: [{ filename: 'out.png', subfolder: '', type: 'output' }] } },
+          },
+        };
+        return new Response(JSON.stringify(done), { status: 200 });
+      }
+      if (url.includes('/view')) {
+        return new Response(new Blob([new Uint8Array([137, 80, 78, 71])]), { status: 200 });
+      }
+      return new Response('{}', { status: 200 });
+    });
+  }
+
+  it('generateComfyImage：API 包装类节点声明 max=2^31-1 时，2^53 大种子被夹进合法范围', async () => {
+    clearSeedCapsCache();
+    const info: JsonObject = {
+      KSampler: { input: { required: { seed: ['INT', { min: 0, max: 18446744073709551615 }] } } },
+      Krea2ImageNode: { input: { required: { seed: ['INT', { min: 0, max: 2147483647 }] } } },
+    };
+    const fetchMock = mockComfyRoundTrip(info);
+    try {
+      const conn: ComfyRunConn = {
+        url: 'http://comfy.test',
+        workflow: JSON.stringify({
+          '3': { class_type: 'KSampler', inputs: { seed: '%seed%' } },
+          '5': { class_type: 'CLIPTextEncode', inputs: { text: '%nl%' } },
+          '9': { class_type: 'Krea2ImageNode', inputs: { seed: '%seed%' } },
+        }),
+        mode: 'custom',
+        simple: simpleDefaults(),
+        portraitSize: '832×1216',
+        landscapeSize: '1216×832',
+      };
+      // 固定一颗 2^53 级大种子;Krea2ImageNode 只收 2^31-1 → 交集把两个落点都夹进 [0, 2^31-1]
+      const bigSeed = 9_007_199_254_740_991;
+      await generateComfyImage(conn, { prompt: '', nl: '中文自然语言提示词', seed: bigSeed });
+      const sent = capturedPromptWorkflow(fetchMock);
+      expect((sent['3'] as { inputs: { seed: number } }).inputs.seed).toBe(bigSeed % 2 ** 31);
+      expect((sent['9'] as { inputs: { seed: number } }).inputs.seed).toBe(bigSeed % 2 ** 31);
+    } finally {
+      fetchMock.mockRestore();
+      clearSeedCapsCache();
+    }
+  });
+
+  it('generateComfyImage：object_info 不可达时回落安全上限 2^31-1', async () => {
+    clearSeedCapsCache();
+    const fetchMock = mockComfyRoundTrip(null);
+    try {
+      const conn: ComfyRunConn = {
+        url: 'http://comfy2.test',
+        workflow: JSON.stringify({
+          '3': { class_type: 'KSampler', inputs: { seed: '%seed%' } },
+          '5': { class_type: 'CLIPTextEncode', inputs: { text: '%nl%' } },
+        }),
+        mode: 'custom',
+        simple: simpleDefaults(),
+        portraitSize: '832×1216',
+        landscapeSize: '1216×832',
+      };
+      const bigSeed = 2 ** 33 + 7;
+      await generateComfyImage(conn, { prompt: '', nl: '中文', seed: bigSeed });
+      const sent = capturedPromptWorkflow(fetchMock);
+      expect((sent['3'] as { inputs: { seed: number } }).inputs.seed).toBe(bigSeed % 2 ** 31);
+    } finally {
+      fetchMock.mockRestore();
+      clearSeedCapsCache();
+    }
+  });
+
+  it('SAFE_SEED_MAX 是所有已见种子节点的公共安全上限', () => {
+    expect(SAFE_SEED_MAX).toBe(2 ** 31 - 1);
   });
 });
 

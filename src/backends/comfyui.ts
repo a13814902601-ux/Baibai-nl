@@ -35,13 +35,66 @@ const POLL_INTERVAL_MS = 500;
 const POLL_TIMEOUT_MS = 10 * 60 * 1000;
 
 /**
- * 生成随机种子（0 ≤ seed < 94967296）。
+ * 生成随机种子（0 ≤ seed < 2^53，与 ComfyUI 网页端 randomize 同量级）。
  * 必须在发起生成时就生成并显式传值：部分节点（如部分采样器包装）不接受 -1 自动随机。
- * Baibai-nl:上限从 2^53 收窄到 94967296（移植自本机 dist 的 seedfix 补丁）——
- * 部分采样器包装/自定义节点对大整数种子兼容不佳,收窄后与 ComfyUI 网页端默认范围同量级。
+ *
+ * Baibai-nl(seedcap):2^53 对本地 KSampler 无害,但 API 包装类节点(Bria/字节/Krea 等)
+ * 声明的 seed max 只有 2^31-1,越界会被 ComfyUI 校验拒绝——这就是当年 dist 里那个
+ * 94967296 经验补丁想治的病。根治方案:出图前按工作流种子节点的声明范围夹紧
+ * (fetchSeedCaps + seedCapsForWorkflow + clampSeed),拿不到声明时回落 2^31-1 安全上限。
  */
 export function randomSeed(): number {
-  return Math.floor(Math.random() * 94967296);
+  return Math.floor(Math.random() * 2 ** 53);
+}
+
+/** 所有种子输入的公共安全上限:object_info 拿不到时的保守回落(所有已见节点的交集)。 */
+export const SAFE_SEED_MAX = 2 ** 31 - 1;
+
+/**
+ * 夹种子到 [min, max]:越界值按模长折回区间内(保留随机性),本就在范围内的原样保留。
+ * 区间不合法(span<=0)时返回 null——调用方对该次出图放弃夹紧,按原样发送。
+ */
+export function clampSeed(seed: number, min: number, max: number): number | null {
+  if (!Number.isFinite(seed)) return null;
+  const value = Math.floor(seed);
+  const span = max - min + 1;
+  if (span <= 0) return null;
+  if (value >= min && value <= max) return value;
+  return min + (value % span);
+}
+
+/** 工作流里全部种子输入声明范围的交集。 */
+export interface SeedCaps {
+  min: number;
+  max: number;
+}
+
+/**
+ * 从 object_info 快照解析工作流里种子输入的声明范围交集。
+ * 只认 %seed% 会落进去的节点吗?不认——模板静态分析分不清连线与占位,统一按
+ * 「工作流里所有含 seed 输入的节点」求交集:范围只会被夹得更紧,不会更松,
+ * 对没有 %seed% 的工作流则不产生任何影响(夹紧后的种子无处可去)。
+ * object_info 缺该节点/该节点 seed 未声明 min/max 时跳过该节点(不猜)。
+ */
+export function seedCapsForWorkflow(workflow: ComfyWorkflow, info: JsonObject): SeedCaps | null {
+  let min = 0;
+  let max = Number.MAX_SAFE_INTEGER;
+  let inputs = 0;
+  for (const node of Object.values(workflow)) {
+    if (typeof node.class_type !== 'string') continue;
+    const spec = info[node.class_type];
+    if (!isObject(spec) || !isObject(spec.input)) continue;
+    for (const group of ['required', 'optional']) {
+      const inputs_ = spec.input[group];
+      if (!isObject(inputs_)) continue;
+      const entry = inputs_.seed;
+      if (!Array.isArray(entry) || entry.length < 2 || !isObject(entry[1])) continue;
+      inputs += 1;
+      if (typeof entry[1].min === 'number') min = Math.max(min, entry[1].min);
+      if (typeof entry[1].max === 'number') max = Math.min(max, entry[1].max);
+    }
+  }
+  return inputs ? { min, max } : null;
 }
 
 export class ComfyUIError extends Error {
@@ -481,6 +534,114 @@ async function pollDirectResult(
   }
 }
 
+/**
+ * 拉取 object_info 并按 url 缓存(session 级,与 comfyObjectInfo 的模型列表缓存互不相干
+ * ——那份只摘列表字段,这里要的是节点输入规格,几 MB 的完整响应不缓存会拖慢每张图)。
+ * 网络级失败(直连 CORS/拒连且 ST 后端转发也失败)返回 null,调用方回落 SAFE_SEED_MAX;
+ * 除此之外的任何失败(超时/HTTP 错误)也一律降级——种子夹紧是加固项,不能反过来阻断出图。
+ */
+const seedCapsCache = new Map<string, JsonObject | null>();
+
+async function fetchObjectInfo(url: string, signal?: AbortSignal): Promise<JsonObject | null> {
+  const key = url.trim();
+  if (seedCapsCache.has(key)) return seedCapsCache.get(key)!;
+  let info: JsonObject | null = null;
+  try {
+    const response = await fetch(endpoint(key, 'object_info'), { signal });
+    if (response.ok) {
+      const parsed = (await response.json()) as unknown;
+      if (isObject(parsed)) info = parsed;
+    }
+  } catch {
+    // 网络级失败 → 尝试 ST 后端转发;转发也拿不到就用安全上限
+  }
+  if (!info) {
+    try {
+      const context = getContext();
+      if (context) {
+        const response = await fetch(`${SERVER_BASE}/models`, {
+          method: 'POST',
+          headers: context.getRequestHeaders(),
+          body: JSON.stringify({ url: key }),
+          signal,
+        });
+        // /models 转发拿不到节点规格,只证明服务端可达——仍用安全上限,但缓存负结果防反复探测
+        seedCapsCache.set(key, null);
+        return null;
+      }
+    } catch {
+      /* 降级 */
+    }
+    seedCapsCache.set(key, null);
+    return null;
+  }
+  seedCapsCache.set(key, info);
+  return info;
+}
+
+/** 测试用:清空 object_info 缓存。 */
+export function clearSeedCapsCache(): void {
+  seedCapsCache.clear();
+}
+
+/**
+ * Baibai-nl(seedcap):把组装好的工作流里所有数值型种子输入改写为声明范围内的值。
+ *
+ * 为什么改写 JSON 而不是提前夹 baseSeed:simple 模式的种子由 buildSimpleWorkflow 深埋进
+ * 节点结构,custom 模式经 %seed% 落位——两种形态在这里已经统一成「可提交 JSON」,
+ * 在这一层按「object_info 声明了 seed 输入的节点类」找落点,天然同时覆盖两模式与
+ * KSampler(noise_seed) 这类不同名的种子输入。
+ *
+ * 同一颗夹紧后的种子写进全部落点(与 %seed% 全局同值的既有语义一致);object_info
+ * 不可达 → 夹进 [0, SAFE_SEED_MAX];声明交集为空(配置矛盾) → 原样发,让 ComfyUI 报错。
+ */
+async function applySeedCap(conn: ComfyRunConn, workflow: ComfyWorkflow, signal?: AbortSignal): Promise<ComfyWorkflow> {
+  const info = await fetchObjectInfo(conn.url, signal);
+  const caps = info ? seedCapsForWorkflow(workflow, info) : null;
+  if (!caps) {
+    // object_info 拿不到:只在有种子落点证据时才动(全部数值 seed 落点按安全上限夹)
+    const fallbackCaps: SeedCaps = { min: 0, max: SAFE_SEED_MAX };
+    return rewriteSeeds(workflow, info, fallbackCaps);
+  }
+  return rewriteSeeds(workflow, info, caps);
+}
+
+/** 在可提交工作流里改写全部「object_info 声明为 seed 输入」的数值落点。 */
+function rewriteSeeds(workflow: ComfyWorkflow, info: JsonObject | null, caps: SeedCaps): ComfyWorkflow {
+  for (const node of Object.values(workflow)) {
+    if (typeof node.class_type !== 'string') continue;
+    const seedInputs = seedInputNames(node.class_type, info);
+    for (const name of seedInputs) {
+      const inputs = node.inputs;
+      if (!isObject(inputs) || typeof inputs[name] !== 'number') continue;
+      const clamped = clampSeed(inputs[name] as number, caps.min, caps.max);
+      if (clamped !== null) inputs[name] = clamped;
+    }
+  }
+  return workflow;
+}
+
+/** 该节点类里属于「种子」的输入名(seed / noise_seed 等数值 INT 种子输入)。 */
+function seedInputNames(classType: string, info: JsonObject | null): string[] {
+  if (!info) {
+    // 无 object_info:保守只认两种最常见的种子输入名,不猜别的
+    return ['seed', 'noise_seed'];
+  }
+  const spec = info[classType];
+  if (!isObject(spec) || !isObject(spec.input)) return [];
+  const names: string[] = [];
+  for (const group of ['required', 'optional']) {
+    const inputs_ = spec.input[group];
+    if (!isObject(inputs_)) continue;
+    for (const [name, entry] of Object.entries(inputs_)) {
+      if (Array.isArray(entry) && entry[0] === 'INT' && /(^|_)seed(_|$)|^noise_seed$/.test(name)) {
+        names.push(name);
+      }
+    }
+  }
+  return names;
+}
+
 export async function generateComfyImage(
   conn: ComfyRunConn,
   values: ComfyTemplateValues,
@@ -499,6 +660,8 @@ export async function generateComfyImage(
     : parseSize(pickSize(conn, values.size ?? 'portrait'));
   // 两模式互斥的分叉点:simple 由模板组装(无占位符),custom 走宏渲染。
   // 汇合点即「拿到可提交 JSON」,之后的排队/轮询/取消完全共用。
+  // Baibai-nl(seedcap):两种模式都在组装后按节点声明范围夹种子(见 clampSeedForWorkflow)。
+  const baseSeed = values.seed ?? randomSeed();
   let workflow: ComfyWorkflow;
   if (conn.mode === 'simple') {
     try {
@@ -506,7 +669,7 @@ export async function generateComfyImage(
         prompt: values.prompt,
         nl: values.nl,
         negative: values.negative_prompt,
-        seed: values.seed ?? randomSeed(),
+        seed: baseSeed,
         width: size?.width ?? 0,
         height: size?.height ?? 0,
       });
@@ -514,8 +677,9 @@ export async function generateComfyImage(
       throw new ComfyUIError(error instanceof Error ? error.message : String(error));
     }
   } else {
-    workflow = renderWorkflowTemplate(conn.workflow, { ...values, ...size });
+    workflow = renderWorkflowTemplate(conn.workflow, { ...values, ...size, seed: baseSeed });
   }
+  workflow = await applySeedCap(conn, workflow, signal);
 
   // 通道自动选择:浏览器直连优先;仅当请求根本没送达 ComfyUI(网络级失败)时回退 ST 后端转发。
   // 回退只发生在「排队」之前——拿到 prompt_id 后任务已入队,轮询阶段的任何失败都不重发,避免重复生图。
