@@ -219,16 +219,16 @@ describe('auto tag prompt', () => {
     expect(thinkingMsg?.content).toContain('第二层｜逐张图槽位块');
     expect(thinkingMsg?.content).toContain('不得合并、不得跨图共用一份');
     expect(thinkingMsg?.content).toContain('第三层｜落笔前自查');
-    for (const slot of ['人物：', '核心动作：', '景别：', '场景：', '环境光：', 'size：']) {
+    for (const slot of ['人数与主体：', '核心动作：', '景别：', '场景：', '环境光：', 'size：']) {
       expect(thinkingMsg?.content).toContain(slot);
     }
     expect(thinkingMsg?.content).toContain('<角色名>｜表情｜视线｜本镜头可见服装｜临时状态｜个人动作');
     expect(thinkingMsg?.content).toContain('确实不适用的槽位写 "-"');
     expect(thinkingMsg?.content).toContain('核心动作、景别、表情、视线、场景、环境光、size 七项永远不得为 "-"');
-    // 表情/视线此前全库没有槽位,是「木脸」的根因;两个后端规范也要各带一份。
-    expect(thinkingMsg?.content).toContain('两项都不得留空，面无表情也要主动填 expressionless');
-    expect(thinkingMsg?.content).toContain('表情与视线填后端规范给出的标准 danbooru 词');
-    expect(thinkingMsg?.content).toContain('没有漏掉表情、视线或环境光');
+    // 表情/视线此前全库没有槽位,是「木脸」的根因;Baibai-nl 后改中文具体描写(nl-only)。
+    expect(thinkingMsg?.content).toContain('两项都不得留空，面无表情也要写「神情平静」');
+    expect(thinkingMsg?.content).toContain('表情与视线各写一句具体中文描写');
+    expect(thinkingMsg?.content).toContain('表情视线、场景、环境光、景别，没有漏项');
     // 不再发送 assistant 预填充,消息以 user 任务消息收尾。
     expect(thinkingMsg?.content).toContain('不得开启第二个 <thinking> 块');
 
@@ -249,11 +249,11 @@ describe('auto tag prompt', () => {
     // 建档的 hair 必须带长度/发型:只写颜色的旧措辞会让模型以 black hair 过关。
     expect(thinkingMsg?.content).toContain('hair 必须同时带发色和长度/发型');
     expect(thinkingMsg?.content).not.toContain('hair 与 eyes 都不得留空');
-    // 白皙肤色词禁令(ComfyUI 默认肤色已够白,叠 pale skin 会白得失真):
-    // 规范给禁令,思维链第三层给落笔前的检查位;tan/dark skin 是豁免项。
-    expect(messages.some(m => m.content.includes('白皙词一律禁止'))).toBe(true);
-    expect(thinkingMsg?.content).toContain('白皙肤色词混进任何一张图');
-    expect(thinkingMsg?.content).toContain('tan、dark skin 不在此列');
+    // 白皙肤色禁令(ComfyUI 默认肤色已够好,特意提亮会失真):
+    // 规范给禁令,思维链第三层给落笔前的检查位;晒黑/深肤色是豁免项。
+    expect(messages.some(m => m.content.includes('「皮肤白皙」这类提亮词一律不写'))).toBe(true);
+    expect(thinkingMsg?.content).toContain('「皮肤白皙」这类特意提亮肤色的描写');
+    expect(thinkingMsg?.content).toContain('晒黑/深肤色时写出来不在此列');
     // 建档字段的详细写法瘦身后只留在任务协议一份,thinking 不再复述。
     expect(messages.some(m => m.content.includes('建档写法：{"name":"角色名","field":"new"'))).toBe(true);
     // 新旧档案的 position 语义、时代判断的发挥边界:瘦身后各自只留一份权威副本
@@ -264,7 +264,7 @@ describe('auto tag prompt', () => {
     expect(thinkingMsg?.content).toContain('把未知的场景事实具体化');
     // 泥地/地形禁令原本 3 份(规范 + 槽位 + 自查),瘦身后规范留完整版、
     // thinking 只留一句「没依据就别写」。outdoors/forest 的具体口径归规范。
-    expect(messages.some(m => m.content.includes('只确定“森林”时写 forest 即可'))).toBe(true);
+    expect(messages.some(m => m.content.includes('只确定“森林”就写“森林”'))).toBe(true);
     expect(messages.some(m => m.content.includes('不得为了丰富画面自行添加泥地、土路'))).toBe(true);
     expect(thinkingMsg?.content).toContain('没依据就别写');
     expect(thinkingMsg?.content).toContain('没依据就删除');
@@ -275,22 +275,22 @@ describe('auto tag prompt', () => {
     expect(thinkingMsg?.content).toContain('裤袜含颜色与透明度');
     expect(thinkingMsg?.content).toContain('模型会自行重新设计的孤立词');
     // 槽位侧同样要挡住笼统词,否则 C 段定了 navy school blazer、槽位里仍退回 school uniform。
-    expect(thinkingMsg?.content).toContain('槽位里不许退回 school uniform、dress、pantyhose 这种笼统孤立词');
-    expect(thinkingMsg?.content).toContain('多人画面每人的服装各写各的');
+    expect(thinkingMsg?.content).toContain('槽位里不许退回「校服」「连衣裙」「裤袜」这种笼统孤立词');
+    expect(messages.some(m => m.content.includes('禁止把两人的特征合并在一句里分不清谁是谁'))).toBe(true);
     // 自查项要点名服装,上一版只提「表情视线」,模型自查时就只核对了表情视线。
-    expect(thinkingMsg?.content).toContain('没有谁的衣服只写在槽位里却没进 tag');
+    expect(thinkingMsg?.content).toContain('没有谁的衣服只写在槽位里却没进 nl');
     // 配角只写「弯腰换鞋」不写表情词 → tag 里他没有表情。角色行必须逐人写全英文词。
     expect(thinkingMsg?.content).toContain('配角也要写全');
-    expect(thinkingMsg?.content).toContain('这一行没有表情词');
-    expect(thinkingMsg?.content).toContain('每个在场角色都各有一个绑定到自己的表情词和视线词');
+    expect(thinkingMsg?.content).toContain('不许只给主角写完整一行');
+    expect(thinkingMsg?.content).toContain('每个在场角色都各有一句带称谓的表情视线描写');
     // 超限重选必须发生在 E 段,不能等到第三层「让位」——那几块槽位是白写的。
     expect(thinkingMsg?.content).toContain('写出 P 列表之前先数一遍');
     expect(thinkingMsg?.content).toContain('这一层只核对、不改决定');
-    expect(messages.some(m => m.content.includes('navy school blazer, white collared shirt, red ribbon'))).toBe(true);
+    expect(messages.some(m => m.content.includes('深蓝校服西装外套、白衬衫、红色丝带'))).toBe(true);
     expect(thinkingMsg?.content).toContain('镜头外不可见的部件可以省略，但省略不等于脱掉');
     expect(thinkingMsg?.content).toContain('没有散落的无主特征');
     expect(messages.some(m => m.content.includes('每个在场正式角色必须二选一'))).toBe(true);
-    expect(messages.some(m => m.content.includes('禁止把两人的外貌特征散放成无法归属的一串公共 tag'))).toBe(true);
+    expect(messages.some(m => m.content.includes('每个角色的发色、瞳色、体型、服装、物件和个人动作都必须写进该角色自己的分述句并带区分性称谓'))).toBe(true);
     expect(thinkingMsg?.content).toContain('定一套具体、自洽的时代/文明/视觉体系并全楼沿用');
     expect(messages.some(m => m.content.includes('必须先判断，并主动具体化'))).toBe(true);
     expect(messages.some(m => m.content.includes('具体不等于编造'))).toBe(true);
@@ -384,26 +384,22 @@ describe('auto tag prompt', () => {
     const oldBackend = settings.defaultBackend;
     const oldModel = settings.nai.model;
     try {
-      // ComfyUI:身份 tag 定词 + 括号转义提醒 + negative 条件自查(只有 Comfy 工作流会有
-      // negative 键);Comfy spec 无 NSFW 条款,思维链也不加。
+      // ComfyUI(nl-only):同人身份改「《作品名》的角名」+ negative 条件自查(只有 Comfy
+      // 工作流会有 negative 键);Comfy spec 无 NSFW 解剖条款,思维链也不加。
       settings.defaultBackend = 'comfyui';
       let text = (await buildAutoTagMessages(context(), 1, options, null))
         .map(m => m.content)
         .join('\n');
-      expect(text).toContain('判定为同人时同一行定出最终身份 tag 词');
-      expect(text).toContain(
-        '每个同人角色的 tag 串里都有 B 段定下的 character name \\(copyright name\\) 身份 tag',
-      );
+      expect(text).toContain('判定为同人时登记 fandom 字段');
+      expect(text).toContain('每个同人角色在 nl 中都用「《作品名》的角名」表明了身份');
       expect(text).toContain('若本图协议含 negative 键');
       expect(text).not.toContain('若本图是显式 NSFW 场景');
-      // spec 的转义指导必须原样到达模型:模板字符串里 \( 会被烹饪成 (,
-      // 0.1.16 起这条实际发给模型的就是未转义括号,一直是坏的。
-      expect(text).toContain('实际提示词形态为 character name \\(copyright name\\)');
-      expect(text).toContain('"character name \\\\(copyright name\\\\)"');
-      expect(text).not.toContain('形态为 character name (copyright name)');
-      // 白皙肤色词禁令只给 ComfyUI:本地模型默认肤色已够白,再叠 pale skin 会白得失真。
-      expect(text).toContain('白皙词一律禁止');
-      expect(text).toContain('白皙肤色词混进任何一张图');
+      // 同人身份在 nl 里用中文作品名表达(《原神》的甘雨),不再是带转义括号的英文 tag。
+      expect(text).toContain('《原神》的甘雨');
+      expect(text).not.toContain('character name \\(copyright name\\)');
+      // 肤色禁令只给 ComfyUI:本地模型默认肤色已够好,特意提亮会失真。
+      expect(text).toContain('「皮肤白皙」这类提亮词一律不写');
+      expect(text).toContain('「皮肤白皙」这类特意提亮肤色的描写');
 
       // NAI 4 系:身份 tag 不转义 + 显式 NSFW 解剖落点(从有变无的回归,此处补回)。
       // 负面词由后端按模型固定附加,AI 不写 negative——不该有 negative 条件自查。
@@ -723,12 +719,12 @@ describe('auto tag prompt', () => {
     const library = '【角色固定外貌库(系统维护)】\n小雪: 1girl, long silver hair';
     const messages = await buildAutoTagMessages(context(), 1, options, null, undefined, library);
 
-    // 示例改用实际外貌串;@占位符已撤回(见 charAnchors.ts 文件头)
-    expect(messages.some(m => m.content.includes('"tag":"1girl, long silver hair, red eyes, white dress"'))).toBe(true);
+    // 示例改用实际外貌串(nl-only 后示例直接是中文 nl);@占位符已撤回(见 charAnchors.ts 文件头)
+    expect(messages.some(m => m.content.includes('"nl":"一位银色长发、红色眼睛的少女，穿着白色连衣裙"'))).toBe(true);
     expect(messages.some(m => m.content.includes('@小雪'))).toBe(false);
     expect(messages.some(m => m.content.includes('系统会替换成库中最新 tag'))).toBe(false);
-    // 照抄库中字段 + 一张图只写一遍,是本次回退的两条核心措辞
-    expect(messages.some(m => m.content.includes('照抄库中/刚建档的字段值'))).toBe(true);
+    // 库字段转写等价自然中文 + 一张图只写一遍,是本次的两条核心措辞
+    expect(messages.some(m => m.content.includes('按库中/刚建档的字段值转写为等价的自然中文'))).toBe(true);
     expect(messages.some(m => m.content.includes('只写一遍'))).toBe(true);
     expect(messages[messages.length - 1].content).toContain(library);
     expect(messages[messages.length - 1].content).not.toContain('currently empty');
@@ -811,7 +807,7 @@ describe('auto tag prompt', () => {
   });
 
   // 表情/视线此前在三个后端规范里都没有位置,思维链槽位填了也会在转 tag 时丢掉。
-  it('reserves an expression/gaze slot in the tag ordering of both tag-based backends', async () => {
+  it('reserves expression/gaze coverage in every backend（NAI 用 danbooru 词表，ComfyUI 用中文具体描写）', async () => {
     const options: AutoTagSettings = {
       enabled: true,
       contextMessages: 2,
@@ -824,29 +820,34 @@ describe('auto tag prompt', () => {
     const oldBackend = settings.defaultBackend;
     const oldModel = settings.nai.model;
     try {
-      for (const backend of ['comfyui', 'nai'] as const) {
-        settings.defaultBackend = backend;
-        if (backend === 'nai') settings.nai.model = 'nai-diffusion-4-full';
-        const messages = await buildAutoTagMessages(context(), 1, options, null);
-        const spec = messages.find(m => m.content.includes('从重要到次要排列'));
-        expect(spec?.content).toContain('动作姿态 → 表情视线 → 场景');
-        expect(spec?.content).toContain('表情与视线每张图都要写，不得省略');
-        expect(spec?.content).toContain('判断为面无表情时也要显式写 expressionless');
-        // 首轮实跑漏出 gentle smile / shy expression / neutral curious expression
-        // 这类非 danbooru 词组:槽位填对了,转 tag 时原样直译。规范里要给限定词表。
-        expect(spec?.content).toContain('必须使用模型认识的标准 danbooru 词，不得自创描述性词组');
-        expect(spec?.content).toContain('gentle smile 写 smile，shy expression 写 blush');
-        expect(spec?.content).toContain('puffy cheeks');
-      }
+      // NAI(tag 系):表情/视线走限定 danbooru 词表
+      settings.defaultBackend = 'nai';
+      settings.nai.model = 'nai-diffusion-4-full';
+      let messages = await buildAutoTagMessages(context(), 1, options, null);
+      let spec = messages.find(m => m.content.includes('从重要到次要排列'));
+      expect(spec?.content).toContain('动作姿态 → 表情视线 → 场景');
+      expect(spec?.content).toContain('表情与视线每张图都要写，不得省略');
+      expect(spec?.content).toContain('判断为面无表情时也要显式写 expressionless');
+      // 首轮实跑漏出 gentle smile / shy expression / neutral curious expression
+      // 这类非 danbooru 词组:槽位填对了,转 tag 时原样直译。规范里要给限定词表。
+      expect(spec?.content).toContain('必须使用模型认识的标准 danbooru 词，不得自创描述性词组');
+      expect(spec?.content).toContain('gentle smile 写 smile，shy expression 写 blush');
+      expect(spec?.content).toContain('puffy cheeks');
+      // ComfyUI(nl-only):表情/视线用具体中文描写,规范里不再有 danbooru 词表
+      settings.defaultBackend = 'comfyui';
+      messages = await buildAutoTagMessages(context(), 1, options, null);
+      spec = messages.find(m => m.content.includes('【ComfyUI 提示词规范】'));
+      expect(spec?.content).toContain('表情与视线每张图都要写，用具体的中文描写呈现');
+      expect(spec?.content).toContain('面无表情也要写出「神情平静」');
     } finally {
       settings.defaultBackend = oldBackend;
       settings.nai.model = oldModel;
     }
   });
 
-  // 同一轮实跑里 P11 两人各自的 looking at another 被合并成一个裸 tag,
-  // petite / black pantyhose 也脱离了 on green hair girl 绑定。
-  it('binds per-character expression, gaze and body type in multi-character ComfyUI tags', async () => {
+  // 同一轮实跑里 P11 两人各自的 looking at another 被合并成一个裸 tag——
+  // Baibai-nl 后多人归属改「区分性称谓 + 各自分述句」,不再靠邻接绑定。
+  it('binds per-character features into labeled per-character sentences in multi-character ComfyUI nl', async () => {
     const options: AutoTagSettings = {
       enabled: true,
       contextMessages: 2,
@@ -860,31 +861,25 @@ describe('auto tag prompt', () => {
     try {
       settings.defaultBackend = 'comfyui';
       const messages = await buildAutoTagMessages(context(), 1, options, null);
-      const spec = messages.find(m => m.content.includes('多人画面（两人及以上）额外规则'));
-      expect(spec?.content).toContain('表情与视线同样是**每人各一份、必须绑定**的特征');
-      expect(spec?.content).toContain('另一人变成默认木脸');
-      expect(spec?.content).toContain('两人表情或视线恰好相同时也各写一份带称谓的');
-      expect(spec?.content).toContain('体型词（petite、tall、muscular 等）不是锚点，必须绑定到具体角色');
-      // 规则没有示例撑腰就是空话:实跑里模型照着示例串抄结构,petite/loli 仍然裸写。
-      expect(spec?.content).toContain('petite on silver hair girl');
-      // 发色瞳色是绑定锚点,裸列才对——不能被上一条误伤成 black hair on black hair girl。
-      expect(spec?.content).toContain('发色、瞳色本身是用来指认角色的锚点，照常裸列即可');
-      // 瘦身时删掉「不许退回笼统词」当轮就复发:tag 里裸写 school uniform +
-      // black opaque pantyhose,男孩的 white shirt/dark pants 干脆没进 tag。
-      expect(spec?.content).toContain('同类不同款的服装尤其要绑定，不能靠一个统称糊过去');
-      expect(spec?.content).toContain('dark pleated skirt on green hair girl');
-      expect(spec?.content).toContain('white shirt on black hair boy');
-      expect(spec?.content).toContain('会让模型把裙子套到男生身上');
-      // 示例串要真的示范绑定写法,否则模型照着旧示例抄裸 tag。
-      expect(spec?.content).toContain('black hair girl smile, black hair girl looking at viewer');
-      expect(spec?.content).toContain('silver hair girl blush, silver hair girl looking away');
+      const spec = messages.find(m => m.content.includes('多人画面按三段组织'));
+      expect(spec?.content).toContain('每句分述都要带上该角色的**区分性称谓**');
+      expect(spec?.content).toContain('用「她」「他们」这类指代会丢失配对');
+      expect(spec?.content).toContain('区分性称谓 = 足以把此人和同框其他人分开的最短说法');
+      // 木脸后果钉在思维链的落笔要求里
+      expect(messages.some(m => m.content.includes('另一人变成默认木脸'))).toBe(true);
+      expect(spec?.content).toContain('同一角色的固定外貌在一张图里只念一次');
+      // 任务协议侧的多人规则:每人特征写进各自分述句,禁止合并在一句里。
+      expect(messages.some(m => m.content.includes('每个角色的发色、瞳色、体型、服装、物件和个人动作都必须写进该角色自己的分述句并带区分性称谓'))).toBe(true);
+      // 示例句要真的示范分述写法,否则模型照旧样抄。
+      expect(spec?.content).toContain('黑色长发、蓝色眼睛的少女穿着白色连衣裙');
+      expect(spec?.content).toContain('银色长发、红色眼睛的少女穿着红色连衣裙');
     } finally {
       settings.defaultBackend = oldBackend;
     }
   });
 
-  // 槽位本身也要挡住中文描述,否则先漏进槽位再漏进 tag。
-  it('makes the per-image slot block demand canonical danbooru expression words', async () => {
+  // 槽位值直写中文要点;表情视线用具体中文描写(不再是 danbooru 词表)。
+  it('makes the per-image slot block demand concrete Chinese expression descriptions', async () => {
     const options: AutoTagSettings = {
       enabled: true,
       contextMessages: 2,
@@ -896,8 +891,8 @@ describe('auto tag prompt', () => {
     };
     const messages = await buildAutoTagMessages(context(), 1, options, null);
     const thinkingMsg = messages.find(m => m.content.includes('输出前思考清单'));
-    expect(thinkingMsg?.content).toContain('不写中文感受也不自创词组（想写「温柔地笑」就填 smile）');
-    expect(thinkingMsg?.content).toContain('多人画面每人各填一份');
+    expect(thinkingMsg?.content).toContain('表情与视线各写一句具体中文描写');
+    expect(thinkingMsg?.content).toContain('多人画面每人各写一份');
     expect(thinkingMsg?.content).toContain('另一人变成默认木脸');
     // 连着两轮实跑都没照抄 ■ 格式,但七个槽位一项没漏——防漏的目的已达成,
     // 形状不是目的。故意不钉「■ 单独成行」这类形态断言,只钉槽位齐全。
@@ -912,7 +907,7 @@ describe('auto tag prompt', () => {
     expect(thinkingMsg?.content).toContain('第三层｜落笔前自查');
     // 上一版只禁「完整 tag/nl 串」,模型钻空子改成在 thinking 里预写整个 JSON 对象
     // (末尾一句 "JSON:" 加一份完整答案),白烧约 800 token。措辞要覆盖 JSON 本身。
-    expect(thinkingMsg?.content).toContain('不写完整 tag 串、不写完整 nl 句、更不要写出 JSON 对象');
+    expect(thinkingMsg?.content).toContain('不写完整 nl 句、更不要写出 JSON 对象');
     expect(thinkingMsg?.content).toContain('答案只在 </thinking> 之后出现一次');
     expect(thinkingMsg?.content).not.toContain('第三层｜落成 tag 并自查');
     expect(thinkingMsg?.content).not.toContain('逐条转成 tag/nl');
@@ -942,7 +937,7 @@ describe('auto tag prompt', () => {
       });
       const messages = await buildAutoTagMessages(context(), 1, options, null);
 
-      expect(messages.some(message => message.content.includes('"negative":"extra people'))).toBe(true);
+      expect(messages.some(message => message.content.includes('"negative":"多余的人'))).toBe(true);
       expect(messages.some(message => message.content.includes('禁止输出通用质量、画质、审美或技术性负面词'))).toBe(true);
       expect(messages.some(message => message.content.includes('worst quality、low quality、blurry'))).toBe(true);
       expect(messages.some(message => message.content.includes('工作流里已有的通用质量负面词'))).toBe(false);
@@ -951,8 +946,8 @@ describe('auto tag prompt', () => {
       expect(messages.some(message => message.content.includes('negative 里绝不能出现正文已明确成立的事实'))).toBe(true);
       expect(messages.some(message => message.content.includes('正文写了在下雨'))).toBe(true);
       // 复发一次:nl 自己写了 drizzle,negative 仍填 rain。禁令必须覆盖「否定自己刚写的内容」。
-      expect(messages.some(message => message.content.includes('也不能否定你自己刚写进本图 tag/nl 的任何东西'))).toBe(true);
-      expect(messages.some(message => message.content.includes('写完 negative 逐词回看本图的 tag 与 nl'))).toBe(true);
+      expect(messages.some(message => message.content.includes('也不能否定你自己刚写进本图 nl 的任何东西'))).toBe(true);
+      expect(messages.some(message => message.content.includes('写完 negative 逐词回看本图的 nl'))).toBe(true);
       expect(messages.some(message => message.content.includes('空的 negative 永远比抵消正文的 negative 安全'))).toBe(true);
     } finally {
       settings.defaultBackend = oldBackend;
@@ -979,11 +974,11 @@ describe('auto tag prompt', () => {
       preset.mode = 'simple';
       preset.simple.template = 'checkpoint';
       const messages = await buildAutoTagMessages(context(), 1, options, null);
-      expect(messages.some(message => message.content.includes('"negative":"extra people'))).toBe(true);
+      expect(messages.some(message => message.content.includes('"negative":"多余的人'))).toBe(true);
 
       preset.simple.template = 'flux';
       const fluxMessages = await buildAutoTagMessages(context(), 1, options, null);
-      expect(fluxMessages.some(message => message.content.includes('"negative":"extra people'))).toBe(false);
+      expect(fluxMessages.some(message => message.content.includes('"negative":"多余的人'))).toBe(false);
     } finally {
       settings.defaultBackend = oldBackend;
       preset.mode = oldMode;
@@ -1116,7 +1111,7 @@ describe('NAI「生成自然语言」开关与渠道画幅锁', () => {
     },
   );
 
-  it('自定义规范与思维链同样按开关展开条件段(两个后端各认各的开关)', async () => {
+  it('自定义规范与思维链的条件段:NAI 认渠道开关,ComfyUI 恒按开启展开(Baibai-nl nl-only)', async () => {
     const state = snapshot();
     const custom = options({
       naiV5Spec: 'NAI-SPEC{{#nl}} with-nl{{/nl}}{{^nl}} tag-only{{/nl}}',
@@ -1142,12 +1137,13 @@ describe('NAI「生成自然语言」开关与渠道画幅锁', () => {
       expect(text).toContain('NAI-SPEC with-nl');
       expect(text).toContain('NAI-THINK with-nl');
 
+      // Baibai-nl:ComfyUI 恒 nl-only,「生成自然语言」开关已退役——条件段恒按开启展开
       settings.defaultBackend = 'comfyui';
       state.preset.naturalLanguage = false;
       text = await run();
-      expect(text).toContain('COMFY-SPEC tag-only');
-      expect(text).toContain('COMFY-THINK tag-only');
-      expect(text).not.toContain('with-nl');
+      expect(text).toContain('COMFY-SPEC with-nl');
+      expect(text).toContain('COMFY-THINK with-nl');
+      expect(text).not.toContain('tag-only');
 
       state.preset.naturalLanguage = true;
       text = await run();
@@ -1212,7 +1208,7 @@ describe('NAI「生成自然语言」开关与渠道画幅锁', () => {
       settings.nai.naturalLanguage = true;
       expect(autoTagProfile()).toMatchObject({ naiCharPrompts: false, nl: false });
 
-      // ComfyUI:自然语言与画幅锁都取当前工作流
+      // ComfyUI(Baibai-nl):恒 nl-only(nl 恒 true,不看已退役的开关),画幅锁取当前工作流
       settings.defaultBackend = 'comfyui';
       state.preset.naturalLanguage = true;
       state.preset.orientationLock = 'landscape';
@@ -1220,7 +1216,7 @@ describe('NAI「生成自然语言」开关与渠道画幅锁', () => {
 
       state.preset.naturalLanguage = false;
       state.preset.orientationLock = 'auto';
-      expect(autoTagProfile()).toEqual({ naiCharPrompts: false, nl: false, lockedSize: null });
+      expect(autoTagProfile()).toEqual({ naiCharPrompts: false, nl: true, lockedSize: null });
     } finally {
       state.restore();
     }

@@ -90,7 +90,7 @@ describe('Baibai-nl seedcap（种子按节点声明范围夹紧）', () => {
 
   // 两个 mock 出图用例共用:抓 /prompt 请求体里的工作流 JSON
   function capturedPromptWorkflow(mock: ReturnType<typeof vi.spyOn>): JsonObject {
-    const call = mock.mock.calls.find(([u]) => String(u).endsWith('/prompt'));
+    const call = mock.mock.calls.find((args: unknown[]) => String(args[0]).endsWith('/prompt'));
     const body = JSON.parse(String((call?.[1] as RequestInit | undefined)?.body)) as JsonObject;
     return (body.prompt ?? {}) as JsonObject;
   }
@@ -105,7 +105,6 @@ describe('Baibai-nl seedcap（种子按节点声明范围夹紧）', () => {
           : new Response('{}', { status: 500 });
       }
       if (url.endsWith('/prompt')) {
-        // 记下请求体供断言;队列直接给 prompt_id
         void init;
         return new Response(JSON.stringify({ prompt_id: 'p_test' }), { status: 200 });
       }

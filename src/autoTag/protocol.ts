@@ -18,9 +18,12 @@ export interface ImageInsertion {
   position: string;
   /** 位置 ID 对应的原始物理行(0-based，仅插件内部使用)。 */
   sourceLine: number;
-  /** danbooru 短 tag 部分(必填)。 */
+  /**
+   * danbooru 短 tag 部分。Baibai-nl:ComfyUI nl-only 协议下模型不再写 tag(留空即可),
+   * NAI 协议(tag 系模型)仍写它;与 nl 至少一个非空。
+   */
   tag: string;
-  /** 自然语言部分(可空;ComfyUI「生成自然语言」开启时由模型一并输出)。 */
+  /** 自然语言部分。Baibai-nl:ComfyUI 协议下这是唯一正向提示词;NAI 下为辅助描述。 */
   nl: string;
   /** 本画面动态负面 tag(可空;仅在 ComfyUI 工作流使用 %negative_prompt% 时要求模型输出)。 */
   negative: string;
@@ -200,8 +203,11 @@ export function parseImagePlan(
     }
     // 兼容模型按旧协议/习惯返回 prompt 键的情况
     const tag = sanitizeContent(entry.tag ?? entry.prompt, 'tag', index);
-    if (!tag) throw new Error(`images[${index}].tag 不能为空`);
     const nl = sanitizeContent(entry.nl, 'nl', index);
+    // Baibai-nl:tag 不再必填(nl-only 协议只写 nl),但两者至少一个要有内容——
+    // 生成层会把有内容的那个对称回填到两个正向通道(见 generate.ts),
+    // 所以单写 nl(ComfyUI)或单写 tag(NAI 偶发)都不会漏进空白提示词。
+    if (!tag && !nl) throw new Error(`images[${index}] 的 tag 与 nl 不能同时为空`);
     const negative = sanitizeContent(entry.negative ?? entry.negative_prompt, 'negative', index);
     const characters = sanitizeCharacters(entry.characters, index);
     // 兼容模型按习惯返回 orientation / aspect 键

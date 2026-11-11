@@ -209,11 +209,17 @@ export async function generateImage(
       meta = { backend: 'nai', model: status.model, ...output.usage };
     } else {
       const conn = effectiveComfyConn();
+      // Baibai-nl:nl-only 协议下 tag 通常为空;两个正向通道对称回退——
+      // 只写 nl 时 %prompt% 也拿到它(老 %prompt% 工作流照样能用),反之亦然。
+      // 两个都写时各归各(存量双通道工作流行为不变)。NAI 分支不做回退:
+      // NAI 的 tag/nl 是两种语义,互相顶替会把中文句塞进 Base tag。
+      const positiveTag = input.prompt.trim() || input.nl?.trim() || '';
+      const positiveNl = input.nl?.trim() || input.prompt.trim() || '';
       result = await generateComfyImage(
         conn,
         {
-          prompt: input.prompt,
-          nl: input.nl ?? '',
+          prompt: positiveTag,
+          nl: positiveNl,
           negative_prompt: input.negative ?? '',
           seed: input.seed,
           size,

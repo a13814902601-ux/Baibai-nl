@@ -246,12 +246,6 @@ const simpleState = computed(() => {
     : { tone: 'ok', text: '有效', detail: '' };
 });
 
-const nlHint = computed(() =>
-  active.value.mode === 'simple'
-    ? '额外生成一段中文自然语言描述;简易模式下优先于 tag 作为正向提示词(Flux/Anima 建议开启)'
-    : '额外生成一段中文自然语言描述,随 %nl% 注入工作流;工作流也可以只留 %nl% 不写 %prompt%',
-);
-
 /** 药丸只显示一个词,具体原因放 title 悬浮提示,不占版面。 */
 const workflowState = computed(() => {
   if (!active.value.workflow.trim()) return { tone: 'muted', text: '未填写', detail: '' };
@@ -350,9 +344,6 @@ function applyAssist() {
     const name = target.name;
     closeAssist();
     toastr.success(`已应用 AI 配置的工作流（${name}）`, '柏宝绘');
-    if (placeholders.includes('nl') && !target.naturalLanguage) {
-      toastr.info('工作流已配置 %nl%；需要时请开启「生成自然语言」', '柏宝绘');
-    }
   } catch (error) {
     toastr.error(errorMessage(error), '工作流无法应用');
   }
@@ -484,11 +475,9 @@ function applyAssist() {
           </span>
         </div>
 
-        <label class="bbi-switch-row">
-          <span class="bbi-field-label">生成自然语言</span>
-          <input v-model="active.naturalLanguage" type="checkbox" class="bbi-checkbox" />
-        </label>
-        <p class="bbi-field-hint wf-switch-hint">{{ nlHint }}</p>
+        <p class="bbi-field-hint wf-switch-hint">
+          提示词输出：中文自然语言（nl-only，随 %nl% 注入工作流；「生成自然语言」开关已并入默认行为）
+        </p>
 
         <div class="bbi-num-row">
           <span class="bbi-field-label">竖屏尺寸(宽×高)</span>
