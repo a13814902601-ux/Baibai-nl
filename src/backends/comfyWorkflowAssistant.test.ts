@@ -102,6 +102,18 @@ describe('applyWorkflowBindings', () => {
     ).toThrow('没有找到正向提示词');
   });
 
+  // Baibai-nl:positive_nl 单独即可满足正向输入,配置出的工作流允许只有 %nl%
+  it('accepts a positive_nl-only binding and produces an nl-only workflow', () => {
+    const result = applyWorkflowBindings(WORKFLOW, [
+      { node: '6', input: 'text', purpose: 'positive_nl', keep: ['F1', 'F2'] },
+      { node: '7', input: 'text', purpose: 'negative', keep: ['F1', 'F2'] },
+    ]);
+    const workflow = JSON.parse(result.workflow);
+    expect(workflow['6'].inputs.text).toBe('masterpiece, best quality\n%nl%');
+    expect(result.nlMode).toBe('separate');
+    expect(result.hasNegative).toBe(true);
+  });
+
   it('keeps only selected fixed fragments and removes exported sample scene content', () => {
     const sample = JSON.stringify({
       '11': {

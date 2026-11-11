@@ -24,16 +24,17 @@ function seedOf(workflow: ComfyWorkflow): unknown {
 afterEach(() => vi.restoreAllMocks());
 
 describe('randomSeed', () => {
-  it('returns an integer in [0, 2**53)', () => {
+  // Baibai-nl:上限收窄到 94967296(移植自本机 dist 的 seedfix 补丁)
+  it('returns an integer in [0, 94967296)', () => {
     const seed = randomSeed();
     expect(Number.isInteger(seed)).toBe(true);
     expect(seed).toBeGreaterThanOrEqual(0);
-    expect(seed).toBeLessThan(2 ** 53);
+    expect(seed).toBeLessThan(94967296);
   });
 
-  it('is derived from Math.random (range = Python random.randint(0, 2**53 - 1))', () => {
+  it('is derived from Math.random (capped range for node compatibility)', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    expect(randomSeed()).toBe(Math.floor(0.5 * 2 ** 53));
+    expect(randomSeed()).toBe(Math.floor(0.5 * 94967296));
   });
 
   it('produces different seeds across calls', () => {
@@ -118,6 +119,31 @@ describe('renderWorkflowTemplate with %nl%', () => {
     });
     const workflow = renderWorkflowTemplate(template, { prompt: '1girl' });
     expect((workflow['5'] as { inputs: { text: unknown } }).inputs.text).toBe('caption: ');
+  });
+
+  // Baibai-nl:自然语言原生工作流只写 %nl%,不再强制 %prompt%
+  it('renders an nl-only workflow (no %prompt% placeholder) and substitutes nl', () => {
+    const template = JSON.stringify({
+      '5': { class_type: 'CLIPTextEncode', inputs: { text: '%nl%' } },
+      '3': { class_type: 'KSampler', inputs: { seed: '%seed%' } },
+    });
+    const workflow = renderWorkflowTemplate(template, {
+      prompt: '',
+      nl: '一名黑色长发的少女坐在教室窗边。',
+    });
+    expect((workflow['5'] as { inputs: { text: unknown } }).inputs.text).toBe(
+      '一名黑色长发的少女坐在教室窗边。',
+    );
+  });
+
+  it('still rejects a workflow with neither %prompt% nor %nl%', () => {
+    const template = JSON.stringify({
+      '5': { class_type: 'CLIPTextEncode', inputs: { text: '1girl' } },
+      '3': { class_type: 'KSampler', inputs: { seed: '%seed%' } },
+    });
+    expect(() => renderWorkflowTemplate(template, { prompt: '1girl' })).toThrow(
+      '缺少 %prompt% 或 %nl%',
+    );
   });
 });
 

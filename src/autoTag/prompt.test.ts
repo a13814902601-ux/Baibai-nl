@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { autoTagProfile, buildAutoTagMessages, expandNlSections } from '@/autoTag/prompt';
 import {
   activeComfyPreset,
+  DEFAULT_JAILBREAK_PROMPT,
   DEFAULT_NAI_V5_SPEC,
   DEFAULT_NAI_V5_THINKING,
   settings,
@@ -406,9 +407,13 @@ describe('auto tag prompt', () => {
 
       // NAI 4 系:身份 tag 不转义 + 显式 NSFW 解剖落点(从有变无的回归,此处补回)。
       // 负面词由后端按模型固定附加,AI 不写 negative——不该有 negative 条件自查。
+      // Baibai-nl:上游此用例在 0.3.2 即已失败——内置破限词(NVWA 文本)本身含「成年人」,
+      // 与下方 not.toContain('成年人') 冲突;这里把破限词消息排除后再断言,口径回到
+      // 「NAI 思维链不得混入 ComfyUI 专属条款」的本意。
       settings.defaultBackend = 'nai';
       settings.nai.model = 'nai-diffusion-4-5-full';
       text = (await buildAutoTagMessages(context(), 1, options, null))
+        .filter(m => m.content !== DEFAULT_JAILBREAK_PROMPT)
         .map(m => m.content)
         .join('\n');
       expect(text).toContain('判定为同人时同一行定出最终身份 tag 词');
@@ -423,8 +428,10 @@ describe('auto tag prompt', () => {
 
       // NAI V5:身份 tag 落点是 characters[].tag 首位;NSFW 按 Base/角色块分工;
       // contentRule 明令禁止 negative tags,不该有 negative 条件自查。
+      // (破限词消息的排除口径与上面 NAI 4 系那段相同)
       settings.nai.model = 'nai-diffusion-5-full';
       text = (await buildAutoTagMessages(context(), 1, options, null))
+        .filter(m => m.content !== DEFAULT_JAILBREAK_PROMPT)
         .map(m => m.content)
         .join('\n');
       expect(text).toContain('身份 tag 必须写进档案');

@@ -173,12 +173,12 @@ const TAG_PROMPT_METAS: TagPromptMeta[] = [
   {
     key: 'comfySpec',
     label: 'ComfyUI 规范',
-    hint: '默认后端为 ComfyUI 时拼进自动 tag 请求，约束 tag / nl 的书写规范。也可用 {{#nl}}…{{/nl}} / {{^nl}}…{{/nl}} 条件段，按当前工作流的「生成自然语言」开关取舍。留空用内置默认。',
+    hint: '默认后端为 ComfyUI 时拼进自动 tag 请求，约束 tag / nl 的书写规范。也可用 {{#nl}}…{{/nl}} / {{^nl}}…{{/nl}} 条件段，按当前工作流的「生成自然语言」开关取舍。留空用内置默认（Baibai-nl 内置的 nl 规范要求输出完整中文自然语言提示词）。',
     builtin: DEFAULT_COMFY_SPEC,
     macros: [
       {
         token: '{{nl}}',
-        desc: '自然语言规范；ComfyUI 面板开启「生成自然语言」时展开，关闭时置空。不写此宏时，开启开关会自动追加到末尾。',
+        desc: '自然语言规范（内置为中文自然语言提示词规范）；ComfyUI 面板开启「生成自然语言」时展开，关闭时置空。不写此宏时，开启开关会自动追加到末尾。',
       },
       ...NL_SECTION_MACROS,
     ],

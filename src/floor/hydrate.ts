@@ -93,9 +93,22 @@ function ensureShadow(anchor: HTMLElement): ShadowRoot {
   return shadow;
 }
 
-/** 楼层 .mes_text 元素；楼层不在 DOM（未渲染/群聊懒渲染）时返回 null。 */
+/**
+ * 楼层 .mes_text 元素；楼层不在 DOM（未渲染/群聊懒渲染）时返回 null。
+ *
+ * Baibai-nl(移植自本机 dist 的 thpatch 补丁):Tweaks Hall 流式渲染时会把 .mes_text
+ * 标记为 hidden! 并改由楼内的 .TH-streaming 元素显示正文;此时锚点跟着 .mes_text 一起
+ * 被隐藏,卡片看不见。检测到该状态就改挂 .TH-streaming,流式结束后 ST 重写 .mes_text,
+ * 走下面的自愈路径回到正常锚点。
+ */
 function findMesText(messageId: number): HTMLElement | null {
-  return document.querySelector<HTMLElement>(`.mes[mesid="${messageId}"] .mes_text`);
+  const mes = document.querySelector<HTMLElement>(`.mes[mesid="${messageId}"]`);
+  const mesText = mes?.querySelector<HTMLElement>('.mes_text') ?? null;
+  if (mesText?.classList.contains('hidden!')) {
+    const thStreaming = mes?.querySelector<HTMLElement>('.TH-streaming');
+    if (thStreaming) return thStreaming;
+  }
+  return mesText;
 }
 
 function unmountKey(key: string): void {

@@ -71,7 +71,7 @@ purpose 只能是：
    - 同一风格已由简短触发词表达时，不再保留自然语言中的重复风格句。
    - 负向保留通用质量、解剖、伪影和固定风格排除词；删除只针对导出示例人物或场景的临时排除词。
    - 不得复制片段文本，只返回 ID；没有固定片段就返回空数组。seed/width/height 的 keep 必须为空数组。
-8. 至少必须找到一个 positive_tag 或 positive_combined。无法可靠确认的输入不要猜。`;
+8. 至少必须找到一个正向提示词输入：positive_tag、positive_nl、positive_combined 任一均可（自然语言原生工作流允许只有 positive_nl）。无法可靠确认的输入不要猜。`;
 
 interface PromptFragment {
   id: string;
@@ -269,7 +269,15 @@ export function applyWorkflowBindings(template: string, bindings: WorkflowBindin
 
   for (const binding of bindings) {
     const before = editableInput(workflow, binding);
-    if (binding.purpose === 'positive_tag' || binding.purpose === 'positive_combined') hasPositive = true;
+    // Baibai-nl:positive_nl(独立自然语言正向输入)同样算正向提示词——
+    // 自然语言原生工作流(Flux/Qwen-Image 类)可以只有它,没有 tag 输入。
+    if (
+      binding.purpose === 'positive_tag' ||
+      binding.purpose === 'positive_combined' ||
+      binding.purpose === 'positive_nl'
+    ) {
+      hasPositive = true;
+    }
     if (binding.purpose === 'positive_nl' && nlMode === 'none') nlMode = 'separate';
     if (binding.purpose === 'positive_combined') nlMode = 'combined';
     if (binding.purpose === 'negative') hasNegative = true;
@@ -283,12 +291,15 @@ export function applyWorkflowBindings(template: string, bindings: WorkflowBindin
     if (String(before) !== after) changes.push({ ...binding, before, after });
   }
 
-  if (!hasPositive && !getWorkflowPlaceholders(template).includes('prompt')) {
+  const existing = getWorkflowPlaceholders(template);
+  // Baibai-nl:已含 %prompt% 或 %nl% 的工作流都算有正向输入(后者是自然语言原生工作流)。
+  if (!hasPositive && !existing.includes('prompt') && !existing.includes('nl')) {
     throw new Error('AI 没有找到正向提示词输入');
   }
   const rendered = JSON.stringify(workflow, null, 2);
-  if (!getWorkflowPlaceholders(rendered).includes('prompt')) {
-    throw new Error('自动配置后的工作流仍缺少 %prompt%');
+  const renderedPlaceholders = getWorkflowPlaceholders(rendered);
+  if (!renderedPlaceholders.includes('prompt') && !renderedPlaceholders.includes('nl')) {
+    throw new Error('自动配置后的工作流仍缺少 %prompt% 或 %nl%');
   }
   return { workflow: rendered, changes, nlMode, hasNegative };
 }

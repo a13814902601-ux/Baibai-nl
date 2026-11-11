@@ -248,8 +248,8 @@ const simpleState = computed(() => {
 
 const nlHint = computed(() =>
   active.value.mode === 'simple'
-    ? '额外生成一段自然语言描述;简易模式下优先于 tag 作为正向提示词(Flux/Anima 建议开启)'
-    : '额外生成一段自然语言描述,随 %nl% 注入工作流',
+    ? '额外生成一段中文自然语言描述;简易模式下优先于 tag 作为正向提示词(Flux/Anima 建议开启)'
+    : '额外生成一段中文自然语言描述,随 %nl% 注入工作流;工作流也可以只留 %nl% 不写 %prompt%',
 );
 
 /** 药丸只显示一个词,具体原因放 title 悬浮提示,不占版面。 */
@@ -257,8 +257,9 @@ const workflowState = computed(() => {
   if (!active.value.workflow.trim()) return { tone: 'muted', text: '未填写', detail: '' };
   try {
     const placeholders = getWorkflowPlaceholders(active.value.workflow);
-    if (!placeholders.includes('prompt')) {
-      return { tone: 'error', text: '缺 %prompt%', detail: 'JSON 有效，但缺少必需的 %prompt% 占位符' };
+    // Baibai-nl:%prompt% 与 %nl% 至少含其一——自然语言原生工作流允许只写 %nl%。
+    if (!placeholders.includes('prompt') && !placeholders.includes('nl')) {
+      return { tone: 'error', text: '缺正向占位符', detail: 'JSON 有效，但缺少 %prompt% 或 %nl% 占位符（至少保留其一）' };
     }
     const unknown = placeholders.filter(
       name => !['prompt', 'negative_prompt', 'seed', 'nl', 'width', 'height'].includes(name),
@@ -341,7 +342,10 @@ function applyAssist() {
     const target = settings.comfyui.workflows.find(w => w.id === assistTargetId.value);
     if (!target) throw new Error('目标工作流已被删除，请重新配置');
     const placeholders = getWorkflowPlaceholders(assistDraft.value);
-    if (!placeholders.includes('prompt')) throw new Error('预览工作流缺少 %prompt% 占位符');
+    // Baibai-nl:与 workflowState 同口径,%prompt% 与 %nl% 至少含其一。
+    if (!placeholders.includes('prompt') && !placeholders.includes('nl')) {
+      throw new Error('预览工作流缺少 %prompt% 或 %nl% 占位符');
+    }
     target.workflow = assistDraft.value;
     const name = target.name;
     closeAssist();
@@ -741,7 +745,7 @@ function applyAssist() {
           placeholder='{"3": {"class_type": "KSampler", ...}, ...}'
         />
         <p class="bbi-field-hint wf-hint">
-          「Save (API Format)」导出；可用 %prompt% %negative_prompt% %seed% %nl% %width% %height%
+          「Save (API Format)」导出；可用 %prompt% %negative_prompt% %seed% %nl% %width% %height%（%prompt% 与 %nl% 至少保留其一，自然语言工作流可只留 %nl%）
         </p>
         </template>
       </Collapsible>

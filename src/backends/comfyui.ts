@@ -10,7 +10,8 @@ export interface ComfyTemplateValues {
   prompt: string;
   negative_prompt?: string;
   seed?: number;
-  /** 自然语言部分;仅写入显式含 %nl% 的工作流,不自动拼进 %prompt%。 */
+  /** 自然语言部分;仅写入显式含 %nl% 的工作流,不自动拼进 %prompt%。
+   *  Baibai-nl:自然语言原生工作流可以只含 %nl% 不含 %prompt%,此时 nl 就是唯一正向提示词。 */
   nl?: string;
   /** 画面宽高;仅写入显式含 %width%/%height% 的工作流,缺省时工作流里写死的尺寸原样生效。 */
   width?: number;
@@ -34,11 +35,13 @@ const POLL_INTERVAL_MS = 500;
 const POLL_TIMEOUT_MS = 10 * 60 * 1000;
 
 /**
- * 生成随机种子（0 ≤ seed < 2^53，与 Python random.randint(0, 2**53 - 1) 同范围）。
+ * 生成随机种子（0 ≤ seed < 94967296）。
  * 必须在发起生成时就生成并显式传值：部分节点（如部分采样器包装）不接受 -1 自动随机。
+ * Baibai-nl:上限从 2^53 收窄到 94967296（移植自本机 dist 的 seedfix 补丁）——
+ * 部分采样器包装/自定义节点对大整数种子兼容不佳,收窄后与 ComfyUI 网页端默认范围同量级。
  */
 export function randomSeed(): number {
-  return Math.floor(Math.random() * 2 ** 53);
+  return Math.floor(Math.random() * 94967296);
 }
 
 export class ComfyUIError extends Error {
@@ -132,7 +135,10 @@ export function renderWorkflowTemplate(template: string, values: ComfyTemplateVa
 
   const unsupported = [...found].filter(name => !SUPPORTED_PLACEHOLDERS.has(name));
   if (unsupported.length) throw new ComfyUIError(`工作流含暂不支持的占位符：${unsupported.map(x => `%${x}%`).join('、')}`);
-  if (!found.has('prompt')) throw new ComfyUIError('工作流中缺少 %prompt% 占位符');
+  // Baibai-nl:自然语言原生工作流允许只写 %nl%(如 Flux/Qwen-Image 类模型),不再强制 %prompt%。
+  if (!found.has('prompt') && !found.has('nl')) {
+    throw new ComfyUIError('工作流中缺少 %prompt% 或 %nl% 占位符（至少保留其一）');
+  }
 
   const needsSize = found.has('width') || found.has('height');
   if (needsSize && !(values.width && values.height)) {
@@ -482,7 +488,10 @@ export async function generateComfyImage(
   hooks?: ComfyProgressHooks,
 ): Promise<ComfyImageResult> {
   if (!conn.url.trim()) throw new ComfyUIError('请先填写 ComfyUI 服务地址');
-  if (!values.prompt.trim()) throw new ComfyUIError('正向提示词不能为空');
+  // Baibai-nl:仅含 %nl% 的工作流里 tag(%prompt%)可以留空,只要自然语言提示词有内容即可出图。
+  if (!values.prompt.trim() && !(values.nl ?? '').trim()) {
+    throw new ComfyUIError('正向提示词不能为空');
+  }
   // 按方向取渠道配置里的尺寸;解析不出就传空,由 renderWorkflowTemplate 决定是报错还是无视
   // (工作流没用 %width%/%height% 时,尺寸配错了也不该妨碍出图)
   const size = values.width && values.height
