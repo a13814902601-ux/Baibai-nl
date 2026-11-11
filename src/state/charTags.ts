@@ -13,15 +13,35 @@ import { reactive } from 'vue';
  * charTagLib 只是响应式派生缓存:合并基线(本聊天优先,全局补同名空缺) + 按楼层物理顺序重放自动变化。
  */
 
-export type CharTagField = 'fandom' | 'sex' | 'hair' | 'eyes' | 'skin' | 'body' | 'extra' | 'outfit';
+export type CharTagField =
+  | 'fandom'
+  | 'sex'
+  | 'age'
+  | 'race'
+  | 'height'
+  | 'hair'
+  | 'eyes'
+  | 'skin'
+  | 'body'
+  | 'breasts'
+  | 'butt'
+  | 'pussy'
+  | 'extra'
+  | 'outfit';
 
 export const CHAR_TAG_FIELDS: readonly CharTagField[] = [
   'fandom',
   'sex',
+  'age',
+  'race',
+  'height',
   'hair',
   'eyes',
   'skin',
   'body',
+  'breasts',
+  'butt',
+  'pussy',
   'extra',
   'outfit',
 ];
@@ -29,10 +49,16 @@ export const CHAR_TAG_FIELDS: readonly CharTagField[] = [
 export const CHAR_TAG_FIELD_LABELS: Record<CharTagField, string> = {
   fandom: '同人身份',
   sex: '性别',
+  age: '年龄',
+  race: '人种',
+  height: '身高',
   hair: '头发',
   eyes: '眼睛',
   skin: '肤色',
   body: '体型',
+  breasts: '胸部',
+  butt: '臀部',
+  pussy: '阴部',
   extra: '标志特征',
   outfit: '固定着装',
 };
@@ -151,7 +177,22 @@ export function lockedCharTagNames(): ReadonlySet<string> {
 }
 
 export function emptyCharFields(): Record<CharTagField, string> {
-  return { fandom: '', sex: '', hair: '', eyes: '', skin: '', body: '', extra: '', outfit: '' };
+  return {
+    fandom: '',
+    sex: '',
+    age: '',
+    race: '',
+    height: '',
+    hair: '',
+    eyes: '',
+    skin: '',
+    body: '',
+    breasts: '',
+    butt: '',
+    pussy: '',
+    extra: '',
+    outfit: '',
+  };
 }
 
 export function charFieldsEmpty(fields: Record<CharTagField, string>): boolean {

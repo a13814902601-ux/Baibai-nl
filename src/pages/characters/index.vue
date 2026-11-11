@@ -82,10 +82,16 @@ const pendingRollback = ref<{ name: string; record: CharTagChangeRecord } | null
 const FIELD_PLACEHOLDERS: Record<CharTagField, string> = {
   fandom: '同人角色填中文身份「《作品名》的角名」,如「《原神》的甘雨」; 原创留空',
   sex: '如「少女」/「少年」',
+  age: '如「18岁」「二十出头」(可不填)',
+  race: '如「精灵」「兽人」「人类」(可不填)',
+  height: '如「158cm」「一米六」(可不填)',
   hair: '如「乌黑的长发」',
   eyes: '如「蓝色的眼睛」',
   skin: '如「晒黑」(可不填)',
-  body: '如「娇小」「胸部丰满」',
+  body: '如「娇小」「高挑」',
+  breasts: '如「贫乳」「乳房丰满」「巨乳」(可不填)',
+  butt: '如「翘臀」「臀部丰满」(可不填)',
+  pussy: '如「无毛」「阴部粉嫩」(可不填)',
   extra: '如「异色瞳」(可不填)',
   outfit: '固定着装,可不填',
 };

@@ -45,7 +45,11 @@ describe('char tags store normalize', () => {
     expect(entries).toEqual([
       {
         name: '阿黛尔',
-        fields: { fandom: '', sex: '1girl', hair: 'short silver hair', eyes: '', skin: '', body: '', extra: '', outfit: '' },
+        fields: {
+          ...emptyCharFields(),
+          sex: '1girl',
+          hair: 'short silver hair',
+        },
         raw: '',
         nl: '',
         source: 'book',
@@ -54,7 +58,7 @@ describe('char tags store normalize', () => {
       },
       {
         name: '铁匠老周',
-        fields: { fandom: '', sex: '1boy', hair: '', eyes: '', skin: '', body: '', extra: '', outfit: '' },
+        fields: { ...emptyCharFields(), sex: '1boy' },
         raw: '',
         nl: '',
         source: 'manual',
@@ -71,7 +75,7 @@ describe('char tags store normalize', () => {
     });
     expect(entries).toHaveLength(1);
     expect(entries[0].raw).toBe('1girl, red eyes');
-    expect(entries[0].fields).toEqual({ fandom: '', sex: '', hair: '', eyes: '', skin: '', body: '', extra: '', outfit: '' });
+    expect(entries[0].fields).toEqual(emptyCharFields());
     expect(entries[0].source).toBe('book');
     expect(entries[0].desc).toBe('红瞳');
   });
