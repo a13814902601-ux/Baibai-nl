@@ -4,6 +4,7 @@ import { bindTagActionButtons } from '@/floor/actionButton';
 import { bindFloorHydration } from '@/floor/hydrate';
 import { injectMenuButton } from '@/menu';
 import { registerPublicInterface } from '@/public/register';
+import { initCardGlobal } from '@/state/cardGlobal';
 import { bindCharTagSync } from '@/state/charTags';
 import { initGlobalCharTags } from '@/state/globalCharTags';
 import { hydrateSettings } from '@/state/settings';
@@ -98,6 +99,8 @@ async function hydrateWhenReady(attempt = 0) {
       await hydrateSettings();
       // 全局库必须在 bindCharTagSync 之前初始化:首次重算就要把全局条目合进派生库
       initGlobalCharTags();
+      // 角色卡全局设定(画风/生成倾向):领养存量数据并识别当前卡,自动 tag 请求前取用
+      initCardGlobal();
       bindCharTagSync();
       ensureImageTagRegexRegistered();
       bindAutoTagging();

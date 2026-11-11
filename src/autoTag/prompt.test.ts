@@ -730,6 +730,54 @@ describe('auto tag prompt', () => {
     expect(messages[messages.length - 1].content).not.toContain('当前为空');
   });
 
+  it('injects the card-global block before the library when provided, omits it otherwise', async () => {
+    const options: AutoTagSettings = {
+      enabled: true,
+      contextMessages: 2,
+      minImages: 0,
+      maxImages: 2,
+      retryCount: 1,
+      autoGenerate: true,
+      prompts: prompts(),
+    };
+    const cardGlobal = [
+      '【角色卡全局设定】[用户手动维护；对本次全部画面生效，优先于你的默认审美与习惯]',
+      '画风=厚涂赛璐璐',
+      '执行要求：画风写进每张图提示词的整体风格描述；全局生成倾向作用于选图、构图、氛围与光线；角色生成倾向作用于角色入镜时的取景与描写侧重。设定与目标正文明确冲突时以正文事实为准，其余情况一律贯彻。',
+    ].join('\n');
+    const library = '【角色固定外貌库(系统维护)】\n小雪: 1girl, long silver hair';
+
+    const withBlock = await buildAutoTagMessages(
+      context(),
+      1,
+      options,
+      null,
+      undefined,
+      library,
+      cardGlobal,
+    );
+    const user = withBlock[withBlock.length - 1];
+    expect(user.content).toContain('【角色卡全局设定】');
+    expect(user.content).toContain('画风=厚涂赛璐璐');
+    // 设定块压在外貌库之前(先定风格,再列长相),两者同时在场
+    expect(user.content.indexOf('【角色卡全局设定】')).toBeLessThan(user.content.indexOf('【角色固定外貌库'));
+    expect(user.content).toContain(library);
+
+    // 未传/空串都不占消息位:默认请求里完全没有这个区块
+    const withoutBlock = await buildAutoTagMessages(context(), 1, options, null, undefined, library);
+    expect(withoutBlock[withoutBlock.length - 1].content).not.toContain('角色卡全局设定');
+    const emptyBlock = await buildAutoTagMessages(
+      context(),
+      1,
+      options,
+      null,
+      undefined,
+      library,
+      '  ',
+    );
+    expect(emptyBlock[emptyBlock.length - 1].content).not.toContain('角色卡全局设定');
+  });
+
   it('forbids poses and scenes from entering the appearance profile', async () => {
     const options: AutoTagSettings = {
       enabled: true,

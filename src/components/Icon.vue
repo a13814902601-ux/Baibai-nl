@@ -36,6 +36,10 @@ const PATHS: Record<string, string> = {
     '<path d="M6 3.5h8.5L19 8v12.5H6z"/><path d="M14 3.5V8h4.5"/><path d="M9 12.5h6M9 16h6M9 9h2"/>',
   // 角色:人像
   characters: '<circle cx="12" cy="8" r="3.5"/><path d="M5.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/>',
+  // 角色卡全局:证件卡(卡框 + 内嵌人像 + 右侧信息行)——「这张卡」的卡级设定,
+  // 区别于 characters 的单人像与 copy 的叠卡。墨迹 x 3.5~20.5 / y 4.5~19.5,与 copy 对齐。
+  'card-global':
+    '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="8.5" cy="10.2" r="2"/><path d="M5.5 16.2c0-1.6 1.3-2.6 3-2.6s3 1 3 2.6"/><path d="M14.5 9.5h4M14.5 13h4M14.5 16.5h2.5"/>',
   // 请求历史:时钟 + 左上回拨箭头(时间倒流)。墨迹 3.5~20.5,与 characters/settings 同量级
   history:
     '<path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4.5v4h4"/><path d="M12 7.5V12l3 1.8"/>',

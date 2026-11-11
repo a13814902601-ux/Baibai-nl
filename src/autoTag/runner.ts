@@ -5,6 +5,7 @@ import {
   resolveCharAnchors,
   type PositionedCharOp,
 } from '@/autoTag/charAnchors';
+import { resolveCardGlobalText } from '@/state/cardGlobal';
 import { prepareTargetText } from '@/autoTag/clean';
 import { beginGeneration, clearGeneration, consumeGeneration } from '@/autoTag/generationGate';
 import { autoTagProfile, buildAutoTagMessages } from '@/autoTag/prompt';
@@ -318,6 +319,8 @@ async function runForFloor(floor: number, opts: RunOptions = {}): Promise<void> 
       memory,
       preparedTarget,
       anchors.text,
+      // 角色卡全局设定(画风/倾向):单槽重写也带——重写同样要贯彻这张卡的风格约束
+      resolveCardGlobalText(),
       slot ? buildSlotTaskNote(rawSource, slot.seq) : '',
       profile,
     );

@@ -27,8 +27,20 @@ import {
   removeGlobalCharTag,
   upsertGlobalCharTag,
 } from '@/state/globalCharTags';
+import {
+  CARD_GLOBAL_FIELD_LABELS,
+  CARD_GLOBAL_FIELDS,
+  cardGlobalEmpty,
+  cardGlobalOf,
+  currentCardKey,
+  currentCardLabel,
+  emptyCardGlobalPreset,
+  saveCardGlobal,
+  type CardGlobalField,
+  type CardGlobalPreset,
+} from '@/state/cardGlobal';
 import { getContext } from '@/st/context';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 /**
  * 角色管理 —— 两层固定外貌库:
@@ -172,6 +184,47 @@ const globalFoldable = computed(() => globalCharTagLib.entries.length > 0);
 const globalShown = computed(() => !globalCollapsed.value || !globalFoldable.value);
 const chatFoldable = computed(() => chatEntries.value.length > 0);
 const chatShown = computed(() => !chatCollapsed.value || !chatFoldable.value);
+
+/* —— 角色卡全局(画风/生成倾向,按卡存、卡内所有聊天共用) ——
+ * 折叠键不进 COLLAPSE_KEYS(那个按 Scope 分区索引);表单常驻,永远可折叠。 */
+const CARD_GLOBAL_COLLAPSE_KEY = 'bbi.ui.cardGlobalCollapsed.v1';
+const CARD_GLOBAL_PLACEHOLDERS: Record<CardGlobalField, string> = {
+  style: '如「厚涂赛璐璐、色彩浓郁」「日系水彩」;写进每张图的整体风格',
+  globalTendency: '对全部画面的倾向,如「偏爱柔和光线」「优先氛围感场景」',
+  characterTendency: '角色入镜时的倾向,如「优先半身特写」「突出表情变化」',
+};
+const cardGlobalCollapsed = ref(loadCollapsed(CARD_GLOBAL_COLLAPSE_KEY));
+const cardGlobalShown = computed(() => !cardGlobalCollapsed.value);
+function toggleCardGlobalFold() {
+  cardGlobalCollapsed.value = !cardGlobalCollapsed.value;
+  persistCollapsed(CARD_GLOBAL_COLLAPSE_KEY, cardGlobalCollapsed.value);
+}
+
+// 有当前卡才可编辑(群聊/未打开聊天都没有「这张卡」);groupChat 依赖 currentCardKey 触发重算
+const cardGlobalAvailable = computed(() => !!currentCardKey.value);
+const cardGlobalGroup = computed(() => {
+  void currentCardKey.value;
+  return !!getContext()?.groupId;
+});
+
+const cardGlobalDraft = ref<CardGlobalPreset>(emptyCardGlobalPreset());
+function loadCardGlobalDraft(key: string | null) {
+  cardGlobalDraft.value = key ? cardGlobalOf(key) : emptyCardGlobalPreset();
+}
+// 换卡(CHAT_CHANGED 推动currentCardKey)即换草稿;immediate 覆盖页面晚于 initCardGlobal 挂载的情况
+watch(currentCardKey, loadCardGlobalDraft, { immediate: true });
+
+function saveCardGlobalDraft() {
+  const key = currentCardKey.value;
+  if (!key) return;
+  const cleared = cardGlobalEmpty(cardGlobalDraft.value);
+  if (saveCardGlobal(key, cardGlobalDraft.value)) {
+    toastr.success(
+      cleared ? '已清空这张卡的全局设定' : '已保存,之后的生成自动带上这些设定',
+      '柏宝绘',
+    );
+  }
+}
 
 function closeEntry() {
   editingName.value = null;
@@ -332,6 +385,64 @@ function sourceLabel(entry: CharTagEntry): string {
     <p class="bbi-field-hint">
       角色固定外貌库:生成提示词时 AI 照抄库中字段值,固定外貌稳定不漂移。
     </p>
+
+    <!-- ===== 角色卡全局(画风/生成倾向) ===== -->
+    <div class="bbi-char-section">
+      <div class="bbi-char-section-head">
+        <button
+          class="bbi-fold-head"
+          type="button"
+          :aria-expanded="cardGlobalShown"
+          :title="cardGlobalShown ? '收起角色卡全局' : '展开角色卡全局'"
+          @click="toggleCardGlobalFold"
+        >
+          <Icon name="chevron" class="bbi-fold-caret" :class="{ 'is-collapsed': !cardGlobalShown }" />
+          <Icon name="card-global" class="bbi-fold-icon" />
+          <span class="bbi-field-label">角色卡全局</span>
+          <span
+            v-if="cardGlobalAvailable"
+            class="bbi-char-pill is-chat"
+            title="设定保存在这张卡名下,它的所有聊天共用"
+          >
+            当前卡:{{ currentCardLabel ?? currentCardKey }}
+          </span>
+          <span v-else class="bbi-char-pill is-override">
+            {{ cardGlobalGroup ? '群聊不适用' : '未打开角色卡' }}
+          </span>
+        </button>
+      </div>
+      <div class="bbi-fold-wrap" :class="{ 'is-collapsed': !cardGlobalShown }">
+        <div class="bbi-fold-inner">
+          <p class="bbi-field-hint">
+            为整张角色卡手动定画风与生成倾向,这张卡的所有聊天共用;外貌库管角色长什么样,这里管画成什么风格。生成提示词时自动带上。
+          </p>
+          <div v-if="cardGlobalAvailable" class="bbi-cardglobal-form">
+            <label v-for="f in CARD_GLOBAL_FIELDS" :key="f" class="bbi-char-form-row">
+              <span class="bbi-char-form-label">{{ CARD_GLOBAL_FIELD_LABELS[f] }}</span>
+              <BbiTextarea
+                v-model="cardGlobalDraft[f]"
+                :rows="2"
+                :max-rows="4"
+                :placeholder="CARD_GLOBAL_PLACEHOLDERS[f]"
+              />
+            </label>
+            <div class="bbi-cardglobal-foot">
+              <span class="bbi-field-hint">下一次生成起生效;清空全部字段再保存即删除设定。</span>
+              <button class="bbi-btn" type="button" @click="saveCardGlobalDraft">
+                <Icon name="check" /> 保存
+              </button>
+            </div>
+          </div>
+          <p v-else class="bbi-char-empty">
+            {{
+              cardGlobalGroup
+                ? '群聊没有单一角色卡,角色卡全局暂不可用;打开单角色聊天后可配置。'
+                : '当前没有打开的角色卡;在 ST 里打开一张卡后即可在这里配置。'
+            }}
+          </p>
+        </div>
+      </div>
+    </div>
 
     <!-- ===== 全局角色库 ===== -->
     <div class="bbi-char-section">
@@ -727,6 +838,34 @@ function sourceLabel(entry: CharTagEntry): string {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* 区头功能图标(角色卡全局):与折叠箭头同款 muted→hover 点亮,但方向固定不转 */
+.bbi-fold-icon {
+  flex: 0 0 auto;
+  color: var(--bbi-ink-muted);
+  transition: color 0.15s;
+}
+.bbi-fold-head:hover:not(.is-static) .bbi-fold-icon,
+.bbi-fold-head:focus-visible .bbi-fold-icon {
+  color: var(--bbi-accent);
+}
+
+/* —— 角色卡全局表单:单列纵排,底部操作行 —— */
+.bbi-cardglobal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bbi-cardglobal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.bbi-cardglobal-foot .bbi-field-hint {
+  flex: 1 1 200px;
 }
 
 /* 区头右侧小「+」:透明底,hover 才点亮,不喷宾夺主 */

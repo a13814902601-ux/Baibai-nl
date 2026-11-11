@@ -150,6 +150,11 @@ export async function buildAutoTagMessages(
   /** 角色固定外貌库文本(charAnchors.ts 产出);空/null = 本轮无库,示例改用自行补特征的口径。 */
   library?: string | null,
   /**
+   * 角色卡全局设定块(cardGlobal.ts 产出):当前卡的画风/全局生成倾向/角色生成倾向。
+   * 空/null = 本卡未配置(或群聊无单一卡),不占消息位;压在角色参考之后、外貌库之前。
+   */
+  cardGlobal?: string | null,
+  /**
    * 追加给模型的任务备注(单槽重写时说明「只重写第 N 张的提示词、画面不变」,
    * 并带上该槽位当前提示词作锚点与其余画面清单)。
    * 空串/缺省时不占消息位;放在角色参考与上下文之后、目标正文之前。
@@ -328,8 +333,9 @@ ${characterRule}
   const thinking = backendThinkingPrompt(options, nlOn, naiCharPromptsOn);
   if (thinking) messages.push({ role: 'system', content: thinking });
   const libraryBlock = library?.trim() || `【角色固定外貌库】[系统维护；当前为空]\n（当前为空，没有任何角色已建档。世界书、角色卡、柏宝书和正文只提供建档依据；未列在本区块中的正式角色必须通过 field:"new" 建档。）`;
+  const cardGlobalBlock = cardGlobal?.trim() ? `${cardGlobal.trim()}\n\n` : '';
   const taskBlock = taskNote?.trim() ? `${taskNote.trim()}\n\n` : '';
-  const userContent = `${memoryText}\n\n${libraryBlock}\n\n${taskBlock}${previous ? `${previous}\n\n` : ''}--- 目标正文｜${roleLabel(context, targetFloor)} ---\n${preparedTarget.promptText}`;
+  const userContent = `${memoryText}\n\n${cardGlobalBlock}${libraryBlock}\n\n${taskBlock}${previous ? `${previous}\n\n` : ''}--- 目标正文｜${roleLabel(context, targetFloor)} ---\n${preparedTarget.promptText}`;
   messages.push({ role: 'user', content: userContent });
   return messages;
 }
