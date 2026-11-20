@@ -770,6 +770,17 @@ describe('auto tag prompt', () => {
     // 设定块压在外貌库之前(先定风格,再列长相),两者同时在场
     expect(user.content.indexOf('【角色卡全局设定】')).toBeLessThan(user.content.indexOf('【角色固定外貌库'));
     expect(user.content).toContain(library);
+    // 0.3.13-nl:规范、思维链与设定块三方都声明「角色卡全局设定最高优先级」,
+    // 防止 system 级默认审美(真实感收尾/NSFW偏好)压过用户手动设定。
+    const specMsg = withBlock.find(m => m.content.includes('【ComfyUI 提示词规范】'));
+    expect(specMsg?.content).toContain('本次请求若携带【角色卡全局设定】');
+    expect(specMsg?.content).toContain('只有设定块未配置的维度才使用本规范的默认值');
+    expect(specMsg?.content).toContain('最后一句收尾按画风定');
+    const thinkingMsg = withBlock.find(m => m.content.includes('输出前思考清单'));
+    expect(thinkingMsg?.content).toContain('先读【角色卡全局设定】');
+    expect(thinkingMsg?.content).toContain('权重高于本清单自带的 NSFW 身体特写偏好');
+    expect(thinkingMsg?.content).toContain('设定块权重高于用户偏好与本判据');
+    expect(thinkingMsg?.content).toContain('没有被当普通参考忽略，也没有拿规范默认审美顶掉它');
 
     // 未传/空串都不占消息位:默认请求里完全没有这个区块
     const withoutBlock = await buildAutoTagMessages(context(), 1, options, null, undefined, library);

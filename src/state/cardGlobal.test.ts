@@ -172,6 +172,10 @@ describe('prompt text', () => {
     expect(text).toContain('角色生成倾向=优先半身特写');
     expect(text).not.toContain('全局生成倾向=');
     expect(text).toContain('执行要求');
+    // 0.3.13-nl:设定块声明最高优先级(用户裁定:全局/角色要求要压过一切默认审美)。
+    expect(text).toContain('优先级最高');
+    expect(text).toContain('高于系统规范与思考清单里的一切默认审美');
+    expect(text).toContain('不得以「参考」为由弱化或省略');
   });
 
   it('resolveCardGlobalText:当前卡有设定则产出设定块,群聊/无卡/未配置为空串', () => {
