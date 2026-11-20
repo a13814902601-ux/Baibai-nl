@@ -213,9 +213,23 @@ export async function buildAutoTagMessages(
   // 示例一律写实际外貌串:@占位符已撤回(见 charAnchors.ts 文件头),
   // 有库/无库的差别只在「照抄库中字段」还是「自行补基础特征」,示例形态相同。
   // Baibai-nl:ComfyUI 的示例是 nl-only(nl 是唯一正向提示词,示例里不带 tag 键)。
+  // 0.3.12-nl:示例按五小节结构写全并织入年龄/人种等档案字段——模型照抄示例的
+  // 倾向比照读规则强得多,给一句短示例它就永远只写一句(字数太少的主因)。
+  const sampleNlSections = (subject: string, pose: string, location: string, camera: string) =>
+    `主体（Subject）\n${subject}\n构图（Composition）\n竖幅中景人像，摄影机从人物正面平视拍摄，人物完整入画，不裁切关键部位。\n动作与姿态（Action & Pose）\n${pose}\n地点与环境（Location）\n${location}\n相机、布光与视觉风格（Camera, Lighting & Style）\n${camera}`;
   const sampleNl = library
-    ? '一位银色长发、红色眼睛的少女，穿着白色连衣裙'
-    : '一位黑色短发的少女，穿着白色连衣裙';
+    ? sampleNlSections(
+        '一名18岁的东亚少女，身材纤细匀称，皮肤白皙细腻，呈现自然柔和的肤色与真实的皮肤质感；留着银色的长发，发丝柔顺细密，发尾垂至腰际；穿着白色连衣裙，棉质面料在窗光下呈现柔和的哑光质感，方领与泡泡袖勾出干净的肩线，裙摆随站姿自然垂坠。',
+        '她站在窗边，右手轻搭窗台，左手自然垂在身侧，重心落在右腿；嘴角带着浅浅的笑，目光望向窗外。',
+        '午后明亮的室内房间，窗台上放着一盆绿植，纱帘半开，窗外透进柔和的日光。',
+        '50mm标准定焦镜头，光圈f/2.8，人物与连衣裙的褶皱细节保持清晰，窗框与室内背景柔和虚化；主要光源为窗户透入的午后日光，在发丝边缘与裙面形成柔和高光，背光侧保留自然阴影；整体为低对比度的暖色调，保持自然曝光与真实材质表现，避免强烈的HDR效果与过度磨皮。',
+      )
+    : sampleNlSections(
+        '一名黑色短发的少女，身材匀称，皮肤呈现自然柔和的肤色与真实的皮肤质感；短发利落服帖，发尾停在耳下；穿着白色连衣裙，棉质面料干净平整，小圆领配短袖剪裁。',
+        '她站在窗边，右手轻搭窗台，左手自然垂在身侧，重心落在右腿；嘴角带着浅浅的笑，目光望向窗外。',
+        '午后明亮的室内房间，窗台上放着一盆绿植，纱帘半开，窗外透进柔和的日光。',
+        '50mm标准定焦镜头，光圈f/2.8，人物清晰、室内背景柔和虚化；主要光源为窗户透入的午后日光，在发丝边缘形成柔和高光，背光侧保留自然阴影；整体为低对比度的暖色调，保持自然曝光与真实材质表现，避免过度磨皮与浓重滤镜。',
+      );
   // NAI 关掉自然语言时示例里一个 nl 键都不留:模型照抄示例的倾向比照读规则强得多
   const sampleImage: Record<string, unknown> = naiCharPromptsOn
     ? {
@@ -270,7 +284,7 @@ export async function buildAutoTagMessages(
 
   const libraryReferenceRule = naiCharPromptsOn
     ? `- If a visible character exists in the fixed appearance library or is created in this changes array, copy the fixed fields into that character own characters[].tag; keep appearance wording verbatim but convert 1girl/1boy to girl/boy. The fandom identity tag (fields.fandom) goes first, verbatim. Do not put them in Base or assign them to another character.${nlOn ? ' Library natural-language notes may inform that character nl.' : ''} Use the library entry name verbatim for characters[].name and for any name inside ${nlOn ? 'tag/nl' : 'tag'} — never transliterate, translate, or vary it.`
-    : '- 画面中的角色只要已在【角色固定外貌库】，或在本次 changes 中建了档，nl 中直接照抄库中/刚建档的字段值写进描写（字段值本身就是自然中文短语；旧数据里的英文 tag 先转写成等价中文再写，不照抄英文），信息一字不增不减，不得自行改写或增删。fandom 字段只作档案记录，画图时不照抄；同人身份用「《作品名》的角名」在 nl 中自然表明。\n   - 同一角色的固定外貌在一张图里只念一次：再次提到他时用简短指代（那个男孩、银发少女）承接，禁止把整串外貌重复第二遍——重复会让模型以为画面里有多个同样的人，把一个人画成互不相连的几块。';
+    : '- 画面中的角色只要已在【角色固定外貌库】，或在本次 changes 中建了档，nl 的主体段就把库中/刚建档的**全部字段值**织进描写：年龄与人种进「一名20岁东亚少女」式开头短语，身高/体型/肤色/胸部/臀部等身体字段进身材与皮肤质感描写，发色发型、瞳色、标志特征各给具体描写，固定着装进服装描写（字段值本身就是自然中文短语；旧数据里的英文 tag 先转写成等价中文再写，不照抄英文），信息一字不增不减，不得自行改写或增删——只念发色瞳色、丢掉年龄/人种/身高/体型等字段，生成的人物就会跑偏。fandom 字段只作档案记录，画图时不照抄；同人身份用「《作品名》的角名」在 nl 中自然表明。\n   - 同一角色的固定外貌在一张图里只念一次：首次出现给完整描写，再次提到他时用简短指代（那个男孩、银发少女）承接，禁止把整串外貌重复第二遍——重复会让模型以为画面里有多个同样的人，把一个人画成互不相连的几块。';
   // 建档 nl 只在协议含 nl 时要求(runner 的验收同一口径,见 autoTagProfile)
   const newCharacterNlRule = !naiCharPromptsOn
     ? ''
@@ -288,7 +302,7 @@ export async function buildAutoTagMessages(
    - 建完档就直接用：同一次输出里，先在 changes 里确立该角色的固定外貌，再在图片 ${naiCharPromptsOn ? 'characters[].tag' : 'nl'} 中${naiCharPromptsOn ? '照抄这套外貌' : '把这套外貌直接写进描写（字段值已是自然中文短语）'}，并围绕它补充服装、动作、场景等其余${naiCharPromptsOn ? 'tag' : '描写'}；同一张图里这套外貌只写一遍。${newCharacterNlRule}`;
   const multiCharacterBindingRule = naiCharPromptsOn
     ? '- 多人画面中，每个角色的发色、瞳色、体型、服装、物件和个人动作都必须放进各自的 characters[].tag，禁止放进 Base 或分配给其他角色。'
-    : '- 多人画面的 nl 里，每个角色的发色、瞳色、体型、服装、物件和个人动作都必须写进该角色自己的分述句并带区分性称谓，禁止把两人的特征合并在一句里分不清谁是谁。';
+    : '- 多人画面的 nl 里，每个角色的年龄人种、身高体型、发色瞳色、服装、物件和个人动作都必须写进该角色自己的分述句并带区分性称谓，禁止把两人的特征合并在一句里分不清谁是谁。';
   const characterRule = `7. 角色状态与 changes：${newCharacterRule}
    ${libraryReferenceRule}
    - 按正文 P 位置为每个角色维护临时服装状态：正文未明确初始穿着时可以合理决定一次；没有穿上、脱下、换装、衣物损坏或场景/时间跳跃时沿用上一状态，发生明确变化后从对应 P 位置起更新。首次确定一套临时服装时，必须冻结足以复现款式的“服装视觉指纹”：服装类别之外，再固定版型/剪裁、主色和关键部件，涉及裤袜时固定颜色与透明度；例如不能只写${naiCharPromptsOn ? ' school uniform, pantyhose，而应具体到 navy school blazer, white collared shirt, red ribbon, dark pleated skirt, opaque white pantyhose' : '「校服、裤袜」，而应具体到「深蓝校服西装外套、白衬衫、红色丝带、深色百褶裙、不透肉白裤袜」'}。只补少量关键特征，不堆无关装饰。相同状态复用同一视觉指纹；镜头外不可见的部件可以省略，但省略不等于脱掉，后续重新可见且中间没有变化时必须恢复。每张图的 ${naiCharPromptsOn ? (nlOn ? 'tag 与 nl 都' : 'tag 都') : 'nl'}要写出当前镜头可见的关键服装特征。临时穿着不得写进固定 outfit，除非设定明确它是长期不换的招牌着装。

@@ -222,13 +222,17 @@ describe('auto tag prompt', () => {
     for (const slot of ['人数与主体：', '核心动作：', '景别：', '场景：', '环境光：', 'size：']) {
       expect(thinkingMsg?.content).toContain(slot);
     }
-    expect(thinkingMsg?.content).toContain('<角色名>｜表情｜视线｜本镜头可见服装｜临时状态｜个人动作');
+    expect(thinkingMsg?.content).toContain('<角色名>｜外貌要点｜表情｜视线｜本镜头可见服装｜临时状态｜个人动作');
     expect(thinkingMsg?.content).toContain('确实不适用的槽位写 "-"');
     expect(thinkingMsg?.content).toContain('核心动作、景别、表情、视线、场景、环境光、size 七项永远不得为 "-"');
+    // 0.3.12-nl:外貌要点是新槽位,钉死「年龄段+人种+身高体型+肤色质感+发/瞳」全部短值。
+    expect(thinkingMsg?.content).toContain('外貌要点一次定全');
+    expect(thinkingMsg?.content).toContain('只写发色瞳色、丢掉年龄/人种/身高/体型的行等于没写');
     // 表情/视线此前全库没有槽位,是「木脸」的根因;Baibai-nl 后改中文具体描写(nl-only)。
     expect(thinkingMsg?.content).toContain('两项都不得留空，面无表情也要写「神情平静」');
     expect(thinkingMsg?.content).toContain('表情与视线各写一句具体中文描写');
-    expect(thinkingMsg?.content).toContain('表情视线、场景、环境光、景别，没有漏项');
+    // 覆盖清单已换五小节口径(主体段织入年龄/人种/身高体型/肤色质感)。
+    expect(thinkingMsg?.content).toContain('人数主体（含每个角色织入的年龄、人种、身高体型、肤色质感）、服装材质、核心动作、全身姿态链、表情视线、场景、相机布光、景别，没有漏项');
     // 不再发送 assistant 预填充,消息以 user 任务消息收尾。
     expect(thinkingMsg?.content).toContain('不得开启第二个 <thinking> 块');
 
@@ -249,11 +253,14 @@ describe('auto tag prompt', () => {
     // 建档的 hair 必须带长度/发型:只写颜色的旧措辞会让模型以 black hair 过关。
     expect(thinkingMsg?.content).toContain('hair 必须同时带颜色和长度/发型');
     expect(thinkingMsg?.content).not.toContain('hair 与 eyes 都不得留空');
-    // 白皙肤色禁令(ComfyUI 默认肤色已够好,特意提亮会失真):
-    // 规范给禁令,思维链第三层给落笔前的检查位;晒黑/深肤色是豁免项。
-    expect(messages.some(m => m.content.includes('「皮肤白皙」这类提亮词一律不写'))).toBe(true);
-    expect(thinkingMsg?.content).toContain('「皮肤白皙」这类特意提亮肤色的描写');
-    expect(thinkingMsg?.content).toContain('晒黑/深肤色时写出来不在此列');
+    // 0.3.12-nl:肤色改为按档案如实写质感(用户参考样例里有「皮肤白皙细腻」);
+    // 禁的是无中生有改肤色,不是「白皙」二字;白皙是东亚/白人角色的真实肤色。
+    // 思维链第三层同时盯「年龄/人种/身高/体型字段实际织入」这个跑偏主因。
+    expect(messages.some(m => m.content.includes('白皙是东亚/白人角色的真实肤色，照写不误'))).toBe(true);
+    expect(messages.some(m => m.content.includes('皮肤白皙细腻，呈现自然柔和的肤色与真实的皮肤质感'))).toBe(true);
+    expect(thinkingMsg?.content).toContain('肤色按档案或设定如实取值');
+    expect(thinkingMsg?.content).toContain('不无中生有改角色肤色');
+    expect(thinkingMsg?.content).toContain('没有只念发色瞳色、丢掉其余字段');
     // 建档字段的详细写法瘦身后只留在任务协议一份,thinking 不再复述。
     expect(messages.some(m => m.content.includes('建档写法：{"name":"角色名","field":"new"'))).toBe(true);
     // 新旧档案的 position 语义、时代判断的发挥边界:瘦身后各自只留一份权威副本
@@ -290,7 +297,7 @@ describe('auto tag prompt', () => {
     expect(thinkingMsg?.content).toContain('镜头外不可见的部件可以省略，但省略不等于脱掉');
     expect(thinkingMsg?.content).toContain('没有散落的无主特征');
     expect(messages.some(m => m.content.includes('每个在场正式角色必须二选一'))).toBe(true);
-    expect(messages.some(m => m.content.includes('每个角色的发色、瞳色、体型、服装、物件和个人动作都必须写进该角色自己的分述句并带区分性称谓'))).toBe(true);
+    expect(messages.some(m => m.content.includes('每个角色的年龄人种、身高体型、发色瞳色、服装、物件和个人动作都必须写进该角色自己的分述句并带区分性称谓'))).toBe(true);
     expect(thinkingMsg?.content).toContain('定一套具体、自洽的时代/文明/视觉体系并全楼沿用');
     expect(messages.some(m => m.content.includes('必须先判断，并主动具体化'))).toBe(true);
     expect(messages.some(m => m.content.includes('具体不等于编造'))).toBe(true);
@@ -397,9 +404,9 @@ describe('auto tag prompt', () => {
       // 同人身份在 nl 里用中文作品名表达(《原神》的甘雨),不再是带转义括号的英文 tag。
       expect(text).toContain('《原神》的甘雨');
       expect(text).not.toContain('character name \\(copyright name\\)');
-      // 肤色禁令只给 ComfyUI:本地模型默认肤色已够好,特意提亮会失真。
-      expect(text).toContain('「皮肤白皙」这类提亮词一律不写');
-      expect(text).toContain('「皮肤白皙」这类特意提亮肤色的描写');
+      // 0.3.12-nl:ComfyUI 肤色改按档案如实写质感,禁令废止;禁的只是改角色肤色。
+      expect(text).toContain('白皙是东亚/白人角色的真实肤色，照写不误');
+      expect(text).toContain('不无中生有改角色肤色');
 
       // NAI 4 系:身份 tag 不转义 + 显式 NSFW 解剖落点(从有变无的回归,此处补回)。
       // 负面词由后端按模型固定附加,AI 不写 negative——不该有 negative 条件自查。
@@ -719,13 +726,14 @@ describe('auto tag prompt', () => {
     const library = '【角色固定外貌库(系统维护)】\n小雪: 1girl, long silver hair';
     const messages = await buildAutoTagMessages(context(), 1, options, null, undefined, library);
 
-    // 示例改用实际外貌串(nl-only 后示例直接是中文 nl);@占位符已撤回(见 charAnchors.ts 文件头)
-    expect(messages.some(m => m.content.includes('"nl":"一位银色长发、红色眼睛的少女，穿着白色连衣裙"'))).toBe(true);
+    // 示例改用实际外貌串(nl-only 后示例直接是中文 nl,0.3.12-nl 起按五小节织入档案字段);
+    // @占位符已撤回(见 charAnchors.ts 文件头)。JSON.stringify 后换行是字面 \n。
+    expect(messages.some(m => m.content.includes('"nl":"主体（Subject）\\n一名18岁的东亚少女'))).toBe(true);
     expect(messages.some(m => m.content.includes('@小雪'))).toBe(false);
     expect(messages.some(m => m.content.includes('系统会替换成库中最新 tag'))).toBe(false);
-    // 库字段转写等价自然中文 + 一张图只写一遍,是本次的两条核心措辞
-    expect(messages.some(m => m.content.includes('直接照抄库中/刚建档的字段值写进描写'))).toBe(true);
-    expect(messages.some(m => m.content.includes('只写一遍'))).toBe(true);
+    // 全部字段值织进主体段(年龄/人种等不再丢) + 一张图只念一次,是本次的两条核心措辞
+    expect(messages.some(m => m.content.includes('库中/刚建档的**全部字段值**织进描写'))).toBe(true);
+    expect(messages.some(m => m.content.includes('只念一次'))).toBe(true);
     expect(messages[messages.length - 1].content).toContain(library);
     expect(messages[messages.length - 1].content).not.toContain('当前为空');
   });
@@ -909,18 +917,18 @@ describe('auto tag prompt', () => {
     try {
       settings.defaultBackend = 'comfyui';
       const messages = await buildAutoTagMessages(context(), 1, options, null);
-      const spec = messages.find(m => m.content.includes('多人画面按三段组织'));
-      expect(spec?.content).toContain('每句分述都要带上该角色的**区分性称谓**');
+      const spec = messages.find(m => m.content.includes('多人 nl 示例（对照上面的规则看写法）'));
+      expect(spec?.content).toContain('句句带该角色的**区分性称谓**');
       expect(spec?.content).toContain('用「她」「他们」这类指代会丢失配对');
-      expect(spec?.content).toContain('区分性称谓 = 足以把此人和同框其他人分开的最短说法');
+      expect(spec?.content).toContain('首次出现给完整描写，之后提到他时用简短指代（那个男孩、银发少女）承接');
       // 木脸后果钉在思维链的落笔要求里
       expect(messages.some(m => m.content.includes('另一人变成默认木脸'))).toBe(true);
-      expect(spec?.content).toContain('同一角色的固定外貌在一张图里只念一次');
-      // 任务协议侧的多人规则:每人特征写进各自分述句,禁止合并在一句里。
-      expect(messages.some(m => m.content.includes('每个角色的发色、瞳色、体型、服装、物件和个人动作都必须写进该角色自己的分述句并带区分性称谓'))).toBe(true);
-      // 示例句要真的示范分述写法,否则模型照旧样抄。
-      expect(spec?.content).toContain('黑色长发、蓝色眼睛的少女穿着白色连衣裙');
-      expect(spec?.content).toContain('银色长发、红色眼睛的少女穿着红色连衣裙');
+      expect(spec?.content).toContain('同一角色的完整外貌在一张图里只念一次');
+      // 任务协议侧的多人规则:每人特征(含年龄人种/身高体型)写进各自分述句,禁止合并。
+      expect(messages.some(m => m.content.includes('每个角色的年龄人种、身高体型、发色瞳色、服装、物件和个人动作都必须写进该角色自己的分述句并带区分性称谓'))).toBe(true);
+      // 示例句要真的示范五小节+分述+档案字段织入,否则模型照旧样抄。
+      expect(spec?.content).toContain('黑色长发、蓝色眼睛的少女是一名17岁的东亚学生');
+      expect(spec?.content).toContain('银色长发、红色眼睛的少女身形娇小');
     } finally {
       settings.defaultBackend = oldBackend;
     }
