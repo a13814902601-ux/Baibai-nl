@@ -228,9 +228,9 @@ describe('auto tag prompt', () => {
     // 0.3.12-nl:外貌要点是新槽位,钉死「年龄段+人种+身高体型+肤色质感+发/瞳」全部短值。
     expect(thinkingMsg?.content).toContain('外貌要点一次定全');
     expect(thinkingMsg?.content).toContain('只写发色瞳色、丢掉年龄/人种/身高/体型的行等于没写');
-    // 表情/视线此前全库没有槽位,是「木脸」的根因;Baibai-nl 后改中文具体描写(nl-only)。
-    expect(thinkingMsg?.content).toContain('两项都不得留空，面无表情也要写「神情平静」');
-    expect(thinkingMsg?.content).toContain('表情与视线各写一句具体中文描写');
+    // 表情/视线此前全库没有槽位,是「木脸」的根因;0.3.14-nl 起落笔英文措辞(nl-only)。
+    expect(thinkingMsg?.content).toContain('两项都不得留空，面无表情也要写 a calm, composed expression');
+    expect(thinkingMsg?.content).toContain('表情与视线各写一句具体描写');
     // 覆盖清单已换五小节口径(主体段织入年龄/人种/身高体型/肤色质感)。
     expect(thinkingMsg?.content).toContain('人数主体（含每个角色织入的年龄、人种、身高体型、肤色质感）、服装材质、核心动作、全身姿态链、表情视线、场景、相机布光、景别，没有漏项');
     // 不再发送 assistant 预填充,消息以 user 任务消息收尾。
@@ -257,7 +257,7 @@ describe('auto tag prompt', () => {
     // 禁的是无中生有改肤色,不是「白皙」二字;白皙是东亚/白人角色的真实肤色。
     // 思维链第三层同时盯「年龄/人种/身高/体型字段实际织入」这个跑偏主因。
     expect(messages.some(m => m.content.includes('白皙是东亚/白人角色的真实肤色，照写不误'))).toBe(true);
-    expect(messages.some(m => m.content.includes('皮肤白皙细腻，呈现自然柔和的肤色与真实的皮肤质感'))).toBe(true);
+    expect(messages.some(m => m.content.includes('fair, smooth skin with natural, realistic texture'))).toBe(true);
     expect(thinkingMsg?.content).toContain('肤色按档案或设定如实取值');
     expect(thinkingMsg?.content).toContain('不无中生有改角色肤色');
     expect(thinkingMsg?.content).toContain('没有只念发色瞳色、丢掉其余字段');
@@ -297,7 +297,7 @@ describe('auto tag prompt', () => {
     expect(thinkingMsg?.content).toContain('镜头外不可见的部件可以省略，但省略不等于脱掉');
     expect(thinkingMsg?.content).toContain('没有散落的无主特征');
     expect(messages.some(m => m.content.includes('每个在场正式角色必须二选一'))).toBe(true);
-    expect(messages.some(m => m.content.includes('每个角色的年龄人种、身高体型、发色瞳色、服装、物件和个人动作都必须写进该角色自己的分述句并带区分性称谓'))).toBe(true);
+    expect(messages.some(m => m.content.includes('每个角色的年龄人种、身高体型、发色瞳色、服装、物件和个人动作都必须写进该角色自己的英文分述句并带区分性称谓'))).toBe(true);
     expect(thinkingMsg?.content).toContain('定一套具体、自洽的时代/文明/视觉体系并全楼沿用');
     expect(messages.some(m => m.content.includes('必须先判断，并主动具体化'))).toBe(true);
     expect(messages.some(m => m.content.includes('具体不等于编造'))).toBe(true);
@@ -398,7 +398,7 @@ describe('auto tag prompt', () => {
         .map(m => m.content)
         .join('\n');
       expect(text).toContain('判定为同人时登记 fandom 字段');
-      expect(text).toContain('每个同人角色在 nl 中都用「《作品名》的角名」表明了身份');
+      expect(text).toContain('每个同人角色在 nl 中都表明了身份：人名照抄原名（中文名保持中文），作品名用通行英文名');
       expect(text).toContain('若本图协议含 negative 键');
       expect(text).not.toContain('若本图是显式 NSFW 场景');
       // 同人身份在 nl 里用中文作品名表达(《原神》的甘雨),不再是带转义括号的英文 tag。
@@ -728,7 +728,7 @@ describe('auto tag prompt', () => {
 
     // 示例改用实际外貌串(nl-only 后示例直接是中文 nl,0.3.12-nl 起按五小节织入档案字段);
     // @占位符已撤回(见 charAnchors.ts 文件头)。JSON.stringify 后换行是字面 \n。
-    expect(messages.some(m => m.content.includes('"nl":"主体（Subject）\\n一名18岁的东亚少女'))).toBe(true);
+    expect(messages.some(m => m.content.includes('"nl":"Subject\\nThe subject is a fair-skinned 18-year-old East Asian girl'))).toBe(true);
     expect(messages.some(m => m.content.includes('@小雪'))).toBe(false);
     expect(messages.some(m => m.content.includes('系统会替换成库中最新 tag'))).toBe(false);
     // 全部字段值织进主体段(年龄/人种等不再丢) + 一张图只念一次,是本次的两条核心措辞
@@ -874,7 +874,7 @@ describe('auto tag prompt', () => {
   });
 
   // 表情/视线此前在三个后端规范里都没有位置,思维链槽位填了也会在转 tag 时丢掉。
-  it('reserves expression/gaze coverage in every backend（NAI 用 danbooru 词表，ComfyUI 用中文具体描写）', async () => {
+  it('reserves expression/gaze coverage in every backend（NAI 用 danbooru 词表，ComfyUI 用英文具体描写）', async () => {
     const options: AutoTagSettings = {
       enabled: true,
       contextMessages: 2,
@@ -900,12 +900,12 @@ describe('auto tag prompt', () => {
       expect(spec?.content).toContain('必须使用模型认识的标准 danbooru 词，不得自创描述性词组');
       expect(spec?.content).toContain('gentle smile 写 smile，shy expression 写 blush');
       expect(spec?.content).toContain('puffy cheeks');
-      // ComfyUI(nl-only):表情/视线用具体中文描写,规范里不再有 danbooru 词表
+      // ComfyUI(nl-only):表情/视线用具体英文措辞,规范里不再有 danbooru 词表
       settings.defaultBackend = 'comfyui';
       messages = await buildAutoTagMessages(context(), 1, options, null);
       spec = messages.find(m => m.content.includes('【ComfyUI 提示词规范】'));
-      expect(spec?.content).toContain('表情与视线每张图都要写，用具体的中文描写呈现');
-      expect(spec?.content).toContain('面无表情也要写出「神情平静」');
+      expect(spec?.content).toContain('表情与视线每张图都要写，用具体的英文措辞呈现');
+      expect(spec?.content).toContain('面无表情也要写出 a calm, composed expression');
     } finally {
       settings.defaultBackend = oldBackend;
       settings.nai.model = oldModel;
@@ -930,23 +930,23 @@ describe('auto tag prompt', () => {
       const messages = await buildAutoTagMessages(context(), 1, options, null);
       const spec = messages.find(m => m.content.includes('多人 nl 示例（对照上面的规则看写法）'));
       expect(spec?.content).toContain('句句带该角色的**区分性称谓**');
-      expect(spec?.content).toContain('用「她」「他们」这类指代会丢失配对');
-      expect(spec?.content).toContain('首次出现给完整描写，之后提到他时用简短指代（那个男孩、银发少女）承接');
+      expect(spec?.content).toContain('用 she、they 这类指代会丢失配对');
+      expect(spec?.content).toContain('首次出现给完整描写，之后提到他时用简短指代（the boy、the silver-haired girl）承接');
       // 木脸后果钉在思维链的落笔要求里
       expect(messages.some(m => m.content.includes('另一人变成默认木脸'))).toBe(true);
       expect(spec?.content).toContain('同一角色的完整外貌在一张图里只念一次');
       // 任务协议侧的多人规则:每人特征(含年龄人种/身高体型)写进各自分述句,禁止合并。
-      expect(messages.some(m => m.content.includes('每个角色的年龄人种、身高体型、发色瞳色、服装、物件和个人动作都必须写进该角色自己的分述句并带区分性称谓'))).toBe(true);
+      expect(messages.some(m => m.content.includes('每个角色的年龄人种、身高体型、发色瞳色、服装、物件和个人动作都必须写进该角色自己的英文分述句并带区分性称谓'))).toBe(true);
       // 示例句要真的示范五小节+分述+档案字段织入,否则模型照旧样抄。
-      expect(spec?.content).toContain('黑色长发、蓝色眼睛的少女是一名17岁的东亚学生');
-      expect(spec?.content).toContain('银色长发、红色眼睛的少女身形娇小');
+      expect(spec?.content).toContain('The girl with long black hair and blue eyes is a fair-skinned 17-year-old East Asian student');
+      expect(spec?.content).toContain('The silver-haired girl with red eyes is petite');
     } finally {
       settings.defaultBackend = oldBackend;
     }
   });
 
-  // 槽位值直写中文要点;表情视线用具体中文描写(不再是 danbooru 词表)。
-  it('makes the per-image slot block demand concrete Chinese expression descriptions', async () => {
+  // 槽位值可写中文要点;表情视线落笔为具体英文措辞(不再是 danbooru 词表)。
+  it('makes the per-image slot block demand concrete English expression wording', async () => {
     const options: AutoTagSettings = {
       enabled: true,
       contextMessages: 2,
@@ -958,7 +958,7 @@ describe('auto tag prompt', () => {
     };
     const messages = await buildAutoTagMessages(context(), 1, options, null);
     const thinkingMsg = messages.find(m => m.content.includes('输出前思考清单'));
-    expect(thinkingMsg?.content).toContain('表情与视线各写一句具体中文描写');
+    expect(thinkingMsg?.content).toContain('表情与视线各写一句具体描写');
     expect(thinkingMsg?.content).toContain('多人画面每人各写一份');
     expect(thinkingMsg?.content).toContain('另一人变成默认木脸');
     // 连着两轮实跑都没照抄 ■ 格式,但七个槽位一项没漏——防漏的目的已达成,

@@ -189,9 +189,10 @@ export async function buildAutoTagMessages(
   ]);
 
   // 自然语言模式(profile.nl):ComfyUI 当前工作流或 NAI 渠道开启了「生成自然语言」。
-  // 开启后协议变为 tag/nl 两键。Baibai-nl:ComfyUI 侧的 nl 按「完整中文提示词」口径书写,
-  // 自然语言原生工作流(只含 %nl%)里它就是唯一正向提示词;NAI 侧维持英文 nl 不变。
-  // 动态负面词同样取自当前预设:切工作流即同时切走自然语言与动态负面词的口径。
+  // 开启后协议变为 tag/nl 两键。Baibai-nl:ComfyUI 侧的 nl 按「完整英文 caption」口径书写
+  // (MOSS-Image 官方规范),自然语言原生工作流(只含 %nl%)里它就是唯一正向提示词;
+  // NAI 侧维持英文 nl 不变。动态负面词同样取自当前预设:切工作流即同时切走自然语言与
+  // 动态负面词的口径。
   const comfyOn = settings.defaultBackend === 'comfyui';
   const naiCharPromptsOn = profile.naiCharPrompts;
   const comfyPreset = comfyOn ? activeComfyPreset() : null;
@@ -211,24 +212,26 @@ export async function buildAutoTagMessages(
     }
   }
   // 示例一律写实际外貌串:@占位符已撤回(见 charAnchors.ts 文件头),
-  // 有库/无库的差别只在「照抄库中字段」还是「自行补基础特征」,示例形态相同。
+  // 有库/无库的差别只在「照抄库中字段」还是「自行补特征」,示例形态相同。
   // Baibai-nl:ComfyUI 的示例是 nl-only(nl 是唯一正向提示词,示例里不带 tag 键)。
   // 0.3.12-nl:示例按五小节结构写全并织入年龄/人种等档案字段——模型照抄示例的
   // 倾向比照读规则强得多,给一句短示例它就永远只写一句(字数太少的主因)。
+  // 0.3.14-nl:nl 按 MOSS-Image 官方规范改为英文 caption——五小节纯英文标题,
+  // 小节内是连贯英文句子;示例同样写足长度,防模型抄短。
   const sampleNlSections = (subject: string, pose: string, location: string, camera: string) =>
-    `主体（Subject）\n${subject}\n构图（Composition）\n竖幅中景人像，摄影机从人物正面平视拍摄，人物完整入画，不裁切关键部位。\n动作与姿态（Action & Pose）\n${pose}\n地点与环境（Location）\n${location}\n相机、布光与视觉风格（Camera, Lighting & Style）\n${camera}`;
+    `Subject\n${subject}\nComposition\nA vertical medium-shot portrait, the camera front-on at eye level, the figure fully in frame with no key body part cropped.\nAction & Pose\n${pose}\nLocation\n${location}\nCamera, Lighting & Style\n${camera}`;
   const sampleNl = library
     ? sampleNlSections(
-        '一名18岁的东亚少女，身材纤细匀称，皮肤白皙细腻，呈现自然柔和的肤色与真实的皮肤质感；留着银色的长发，发丝柔顺细密，发尾垂至腰际；穿着白色连衣裙，棉质面料在窗光下呈现柔和的哑光质感，方领与泡泡袖勾出干净的肩线，裙摆随站姿自然垂坠。',
-        '她站在窗边，右手轻搭窗台，左手自然垂在身侧，重心落在右腿；嘴角带着浅浅的笑，目光望向窗外。',
-        '午后明亮的室内房间，窗台上放着一盆绿植，纱帘半开，窗外透进柔和的日光。',
-        '50mm标准定焦镜头，光圈f/2.8，人物与连衣裙的褶皱细节保持清晰，窗框与室内背景柔和虚化；主要光源为窗户透入的午后日光，在发丝边缘与裙面形成柔和高光，背光侧保留自然阴影；整体为低对比度的暖色调，保持自然曝光与真实材质表现，避免强烈的HDR效果与过度磨皮。',
+        'The subject is a fair-skinned 18-year-old East Asian girl with a slender, well-proportioned figure; her skin is smooth with a natural, realistic texture. She has long silver hair, silky and fine, the ends falling to her waist, and wears a white cotton dress whose matte fabric softens under the window light, its square neckline and puff sleeves tracing a clean shoulder line, the skirt hanging straight with her stance.',
+        'She stands by the window, her right hand resting lightly on the sill and her left arm relaxed at her side, her weight on her right leg; a light smile lifts the corners of her mouth as her gaze drifts out through the glass.',
+        'A bright interior room in the afternoon; a potted plant sits on the windowsill and sheer half-drawn curtains diffuse the incoming daylight.',
+        'A 50mm prime at f/2.8 keeps the girl and the folds of her dress sharp while the window frame and the room behind melt into soft blur; the afternoon window light is the key source, laying gentle highlights along her hair and the dress and leaving natural shadow on the far side; overall a low-contrast warm palette with natural exposure and true-to-life materials, no heavy HDR or over-smoothed skin.',
       )
     : sampleNlSections(
-        '一名黑色短发的少女，身材匀称，皮肤呈现自然柔和的肤色与真实的皮肤质感；短发利落服帖，发尾停在耳下；穿着白色连衣裙，棉质面料干净平整，小圆领配短袖剪裁。',
-        '她站在窗边，右手轻搭窗台，左手自然垂在身侧，重心落在右腿；嘴角带着浅浅的笑，目光望向窗外。',
-        '午后明亮的室内房间，窗台上放着一盆绿植，纱帘半开，窗外透进柔和的日光。',
-        '50mm标准定焦镜头，光圈f/2.8，人物清晰、室内背景柔和虚化；主要光源为窗户透入的午后日光，在发丝边缘形成柔和高光，背光侧保留自然阴影；整体为低对比度的暖色调，保持自然曝光与真实材质表现，避免过度磨皮与浓重滤镜。',
+        'The subject is a girl with short black hair and a well-proportioned figure; her skin shows a natural, even tone with a realistic texture. Her hair is neat and close-fitting, the ends stopping below her ears, and she wears a white cotton dress, the fabric clean and smooth, cut with a small round collar and short sleeves.',
+        'She stands by the window, her right hand resting lightly on the sill and her left arm relaxed at her side, her weight on her right leg; a light smile lifts the corners of her mouth as her gaze drifts out through the glass.',
+        'A bright interior room in the afternoon; a potted plant sits on the windowsill and sheer half-drawn curtains diffuse the incoming daylight.',
+        'A 50mm prime at f/2.8 keeps the girl sharp while the interior behind softly blurs; the afternoon window light is the key source, laying gentle highlights along her hair and leaving natural shadow on the far side; overall a low-contrast warm palette with natural exposure and true-to-life materials, no over-smoothed skin or heavy filtering.',
       );
   // NAI 关掉自然语言时示例里一个 nl 键都不留:模型照抄示例的倾向比照读规则强得多
   const sampleImage: Record<string, unknown> = naiCharPromptsOn
@@ -258,9 +261,9 @@ export async function buildAutoTagMessages(
       ? `4. Every image must include Base tag, English Base nl, and characters. Write every nl in English even when the story text is in another language, but keep every character name exactly as in the story: Chinese names stay Chinese (小雪, never Xiaoxue or Snow) in characters[].name, changes[].name, and inside any tag/nl text. Base contains only global counts, scene, composition, lighting, and shared relations — this applies to the Base nl as much as to the Base tag. Give each individual character visible inside the selected frame one Character Prompt ordered left-to-right then top-to-bottom; name/tag/nl are all required. ${naiCharacterRuleTail}`
       : `4. Every image must include Base tag and characters. This output is tag-only: write no nl key anywhere, neither in Base nor in characters[]. Keep every character name exactly as in the story: Chinese names stay Chinese (小雪, never Xiaoxue or Snow) in characters[].name, changes[].name, and inside any tag text. Base contains only global counts, scene, composition, lighting, and shared relations. Give each individual character visible inside the selected frame one Character Prompt ordered left-to-right then top-to-bottom; name and tag are both required. ${naiCharacterRuleTail}`
     : // Baibai-nl:ComfyUI 是 nl-only——nl 是唯一正向提示词,示例里连 tag 键都没有
-      '4. nl 是本画面唯一的正向提示词：完整的中文自然语言提示词（按后端规范书写，可独立成画）；只含正面内容，不得包含质量词、负面词、JSON 以外的说明或 <bbi_image>/<tag>/<nl>/<size> 标签。';
+      '4. nl 是本画面唯一的正向提示词：完整的英文自然语言 caption（按后端规范书写，可独立成画，官方推荐英文）；只含正面内容，不得包含质量词（masterpiece、best quality、highres、8k、ultra detailed 等冗余质量词一律不写）、负面词、JSON 以外的说明或 <bbi_image>/<tag>/<nl>/<size> 标签。';
   const negativeRule = negativeOn
-    ? '\n   negative 是本画面专用的负面排除短词（中英文皆可，短词优先）：只排除与正文冲突或本构图特别容易误生成的内容，可为空；禁止输出通用质量、画质、审美或技术性负面词，包括但不限于 worst quality、low quality、blurry、lowres、bad anatomy、bad hands、jpeg artifacts；不要写希望出现的内容，不得使用 @角色占位符。\n   negative 里绝不能出现正文已明确成立的事实，也不能否定你自己刚写进本图 nl 的任何东西：正文写了在下雨、或你的 nl 写了「下着小雨」，就绝不许在 negative 写 rain / 雨；写了角色戴眼镜就不许写 glasses / 眼镜——那是在抹掉画面本该有的东西。写完 negative 逐词回看本图的 nl，凡是能在里面找到对应内容的词一律删掉。拿不准时留空，空的 negative 永远比抵消正文的 negative 安全。'
+    ? '\n   negative 是本画面专用的负面排除短词（一律英文短词）：只排除与正文冲突或本构图特别容易误生成的内容，可为空；禁止输出通用质量、画质、审美或技术性负面词，包括但不限于 worst quality、low quality、blurry、lowres、bad anatomy、bad hands、jpeg artifacts；不要写希望出现的内容，不得使用 @角色占位符。\n   negative 里绝不能出现正文已明确成立的事实，也不能否定你自己刚写进本图 nl 的任何东西：正文写了在下雨、或你的 nl 写了 a light rain，就绝不许在 negative 写 rain；写了角色戴眼镜就不许写 glasses——那是在抹掉画面本该有的东西。写完 negative 逐词回看本图的 nl，凡是能在里面找到对应内容的词一律删掉。拿不准时留空，空的 negative 永远比抵消正文的 negative 安全。'
     : '';
 
   // 设置层已维护 0 ≤ min ≤ max；这里仍做一次局部归一,让直接调用/测试传入脏对象也不会
@@ -284,7 +287,7 @@ export async function buildAutoTagMessages(
 
   const libraryReferenceRule = naiCharPromptsOn
     ? `- If a visible character exists in the fixed appearance library or is created in this changes array, copy the fixed fields into that character own characters[].tag; keep appearance wording verbatim but convert 1girl/1boy to girl/boy. The fandom identity tag (fields.fandom) goes first, verbatim. Do not put them in Base or assign them to another character.${nlOn ? ' Library natural-language notes may inform that character nl.' : ''} Use the library entry name verbatim for characters[].name and for any name inside ${nlOn ? 'tag/nl' : 'tag'} — never transliterate, translate, or vary it.`
-    : '- 画面中的角色只要已在【角色固定外貌库】，或在本次 changes 中建了档，nl 的主体段就把库中/刚建档的**全部字段值**织进描写：年龄与人种进「一名20岁东亚少女」式开头短语，身高/体型/肤色/胸部/臀部等身体字段进身材与皮肤质感描写，发色发型、瞳色、标志特征各给具体描写，固定着装进服装描写（字段值本身就是自然中文短语；旧数据里的英文 tag 先转写成等价中文再写，不照抄英文），信息一字不增不减，不得自行改写或增删——只念发色瞳色、丢掉年龄/人种/身高/体型等字段，生成的人物就会跑偏。fandom 字段只作档案记录，画图时不照抄；同人身份用「《作品名》的角名」在 nl 中自然表明。\n   - 同一角色的固定外貌在一张图里只念一次：首次出现给完整描写，再次提到他时用简短指代（那个男孩、银发少女）承接，禁止把整串外貌重复第二遍——重复会让模型以为画面里有多个同样的人，把一个人画成互不相连的几块。';
+    : '- 画面中的角色只要已在【角色固定外貌库】，或在本次 changes 中建了档，nl 的主体段就把库中/刚建档的**全部字段值**织进描写：年龄与人种进 "a fair-skinned 20-year-old East Asian girl" 式开头短语，身高/体型/肤色/胸部/臀部等身体字段进身材与皮肤质感描写，发色发型、瞳色、标志特征各给具体描写，固定着装进服装描写。字段值是自然中文短语（旧数据里的英文 tag 也是短语），织入英文 nl 时**转写成等价的英文自然语言描写**（「乌黑的长发」→ long, glossy black hair）——写进句子，不是塞 tag；信息一字不增不减，不得自行改写或增删——只念发色瞳色、丢掉年龄/人种/身高/体型等字段，生成的人物就会跑偏。fandom 字段只作档案记录，画图时不照抄；同人身份在 nl 中用人名照抄原名 + 作品通行英文名自然表明。\n   - 同一角色的固定外貌在一张图里只念一次：首次出现给完整描写，再次提到他时用简短指代（the boy、the silver-haired girl）承接，禁止把整串外貌重复第二遍——重复会让模型以为画面里有多个同样的人，把一个人画成互不相连的几块。';
   // 建档 nl 只在协议含 nl 时要求(runner 的验收同一口径,见 autoTagProfile)
   const newCharacterNlRule = !naiCharPromptsOn
     ? ''
@@ -302,10 +305,10 @@ export async function buildAutoTagMessages(
    - 建完档就直接用：同一次输出里，先在 changes 里确立该角色的固定外貌，再在图片 ${naiCharPromptsOn ? 'characters[].tag' : 'nl'} 中${naiCharPromptsOn ? '照抄这套外貌' : '把这套外貌直接写进描写（字段值已是自然中文短语）'}，并围绕它补充服装、动作、场景等其余${naiCharPromptsOn ? 'tag' : '描写'}；同一张图里这套外貌只写一遍。${newCharacterNlRule}`;
   const multiCharacterBindingRule = naiCharPromptsOn
     ? '- 多人画面中，每个角色的发色、瞳色、体型、服装、物件和个人动作都必须放进各自的 characters[].tag，禁止放进 Base 或分配给其他角色。'
-    : '- 多人画面的 nl 里，每个角色的年龄人种、身高体型、发色瞳色、服装、物件和个人动作都必须写进该角色自己的分述句并带区分性称谓，禁止把两人的特征合并在一句里分不清谁是谁。';
+    : '- 多人画面的 nl 里，每个角色的年龄人种、身高体型、发色瞳色、服装、物件和个人动作都必须写进该角色自己的英文分述句并带区分性称谓（the girl with long black hair and blue eyes），禁止把两人的特征合并在一句里分不清谁是谁。';
   const characterRule = `7. 角色状态与 changes：${newCharacterRule}
    ${libraryReferenceRule}
-   - 按正文 P 位置为每个角色维护临时服装状态：正文未明确初始穿着时可以合理决定一次；没有穿上、脱下、换装、衣物损坏或场景/时间跳跃时沿用上一状态，发生明确变化后从对应 P 位置起更新。首次确定一套临时服装时，必须冻结足以复现款式的“服装视觉指纹”：服装类别之外，再固定版型/剪裁、主色和关键部件，涉及裤袜时固定颜色与透明度；例如不能只写${naiCharPromptsOn ? ' school uniform, pantyhose，而应具体到 navy school blazer, white collared shirt, red ribbon, dark pleated skirt, opaque white pantyhose' : '「校服、裤袜」，而应具体到「深蓝校服西装外套、白衬衫、红色丝带、深色百褶裙、不透肉白裤袜」'}。只补少量关键特征，不堆无关装饰。相同状态复用同一视觉指纹；镜头外不可见的部件可以省略，但省略不等于脱掉，后续重新可见且中间没有变化时必须恢复。每张图的 ${naiCharPromptsOn ? (nlOn ? 'tag 与 nl 都' : 'tag 都') : 'nl'}要写出当前镜头可见的关键服装特征。临时穿着不得写进固定 outfit，除非设定明确它是长期不换的招牌着装。
+   - 按正文 P 位置为每个角色维护临时服装状态：正文未明确初始穿着时可以合理决定一次；没有穿上、脱下、换装、衣物损坏或场景/时间跳跃时沿用上一状态，发生明确变化后从对应 P 位置起更新。首次确定一套临时服装时，必须冻结足以复现款式的“服装视觉指纹”：服装类别之外，再固定版型/剪裁、主色和关键部件，涉及裤袜时固定颜色与透明度；例如不能只写${naiCharPromptsOn ? ' school uniform, pantyhose，而应具体到 navy school blazer, white collared shirt, red ribbon, dark pleated skirt, opaque white pantyhose' : '「校服、裤袜」，而应具体到 a navy school blazer over a white collared shirt with a red ribbon, paired with a dark pleated skirt and opaque white tights'}。只补少量关键特征，不堆无关装饰。相同状态复用同一视觉指纹；镜头外不可见的部件可以省略，但省略不等于脱掉，后续重新可见且中间没有变化时必须恢复。每张图的 ${naiCharPromptsOn ? (nlOn ? 'tag 与 nl 都' : 'tag 都') : 'nl'}要写出当前镜头可见的关键服装特征。临时穿着不得写进固定 outfit，除非设定明确它是长期不换的招牌着装。
    ${multiCharacterBindingRule}
    - 库中已有角色发生**永久外貌变化**（染发、剪发、留疤、长大、永久变身、固定造型改变等）时，必须通过 changes 报告：{"name":"角色名","field":"hair","value":"${naiCharPromptsOn ? 'short red hair' : '酒红色的短发'}","position":"P4","reason":"在此处染发并剪短"}；field 只能是 sex/age/race/height/hair/eyes/skin/body/breasts/butt/pussy/extra/outfit/fandom。
    - 已建档角色被判定为同人、但档案里没有 fandom 的，必须补一条 changes：{"name":"角色名","field":"fandom","value":"${naiCharPromptsOn ? 'character name (copyright name)' : '《作品名》的角名'}","reason":"判定为同人，补身份 tag"}；档案已有 fandom 的直接照抄，不重复报告。
