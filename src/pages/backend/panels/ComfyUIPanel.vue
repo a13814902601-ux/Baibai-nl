@@ -26,6 +26,7 @@ import Collapsible from '@/components/Collapsible.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import Icon from '@/components/Icon.vue';
 import ModalMask from '@/components/ModalMask.vue';
+import ComfyWorkflowLoraEditor from '@/pages/backend/panels/ComfyWorkflowLoraEditor.vue';
 import {
   activeComfyPreset,
   effectiveComfyConn,
@@ -42,6 +43,7 @@ const assistDraft = ref('');
 const assistResult = ref<WorkflowAssistResult | null>(null);
 /** AI 预览针对哪一套:预览期间用户可能切走或删掉,应用时按 id 回写而不是写「当前」。 */
 const assistTargetId = ref('');
+const assistSource = ref('');
 const confirmDeleteOpen = ref(false);
 
 /** 本渠道是否为当前出图渠道;「使用此渠道」按钮与设置页选择器、页签徽标同属一个开关。 */
@@ -307,8 +309,9 @@ async function onAutoConfigure() {
   if (configuring.value || !active.value.workflow.trim()) return;
   configuring.value = true;
   const targetId = active.value.id;
+  const source = active.value.workflow;
   try {
-    const result = await configureWorkflowWithAi(active.value.workflow);
+    const result = await configureWorkflowWithAi(source);
     if (!result.changes.length) {
       toastr.info('工作流中的动态参数已经配置，无需修改', '柏宝绘');
       return;
@@ -316,6 +319,7 @@ async function onAutoConfigure() {
     assistResult.value = result;
     assistDraft.value = result.workflow;
     assistTargetId.value = targetId;
+    assistSource.value = source;
     assistOpen.value = true;
   } catch (error) {
     toastr.error(errorMessage(error), 'AI 配置工作流失败');
@@ -329,12 +333,14 @@ function closeAssist() {
   assistResult.value = null;
   assistDraft.value = '';
   assistTargetId.value = '';
+  assistSource.value = '';
 }
 
 function applyAssist() {
   try {
     const target = settings.comfyui.workflows.find(w => w.id === assistTargetId.value);
     if (!target) throw new Error('目标工作流已被删除，请重新配置');
+    if (target.workflow !== assistSource.value) throw new Error('工作流已修改，请关闭旧预览并重新配置');
     const placeholders = getWorkflowPlaceholders(assistDraft.value);
     // Baibai-nl:与 workflowState 同口径,%prompt% 与 %nl% 至少含其一。
     if (!placeholders.includes('prompt') && !placeholders.includes('nl')) {
@@ -704,6 +710,15 @@ function applyAssist() {
 
         <!-- 自定义模式:粘贴 API 格式 JSON -->
         <template v-else>
+        <ComfyWorkflowLoraEditor
+          :key="active.id"
+          v-model="active.workflow"
+          :options="loraOptions"
+          :can-fetch="!!settings.comfyui.url.trim()"
+          :fetching="fetching"
+          :fetch-status="fetchStatus"
+          @fetch-options="onFetchModels()"
+        />
         <div class="wf-json-head">
           <span class="bbi-field-label">工作流 JSON</span>
           <span class="wf-json-tools">

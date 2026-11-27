@@ -3,7 +3,7 @@
   "loading_order": 100,
   "requires": [],
   "optional": [],
-  "js": "dist/index.js?ver=0.3.14-nl-seedfix-thfix",
+  "js": "dist/index.js?ver=0.3.14-nl-seedfix-thfix-lora",
   "author": "柏柏",
   "version": "0.3.14-nl",
   "homePage": "https://github.com/baibai-git/ST-BaiBai-Image",
